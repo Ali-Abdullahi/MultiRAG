@@ -69,3 +69,21 @@ def _render_one(
         width=width,
         height=height,
     )
+
+
+def render_pdf(pdf_path: Path, *, force: bool = False) -> tuple[str, list[RenderedPage]]:
+    """Rasterize every page of a PDF. Returns its document id and page records.
+
+    Safe to call repeatedly: the document id is content-derived and existing
+    images are reused, so a second call over the same PDF is close to free.
+    """
+    pdf_path = Path(pdf_path)
+    document_id = ids.doc_id(pdf_path)
+    out_dir = config.PAGES_DIR / document_id
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    with fitz.open(pdf_path) as document:
+        return document_id, [
+            _render_one(page, index, document_id, out_dir, force)
+            for index, page in enumerate(document)
+        ]
