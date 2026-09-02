@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import fitz  # PyMuPDF
+from PIL import Image
 
 from multirag import config
 from multirag.ingest import ids
@@ -40,3 +41,31 @@ def _zoom_for_page(page: fitz.Page) -> float:
     if long_edge_points * zoom > config.MAX_PIXELS_LONG_EDGE:
         zoom = config.MAX_PIXELS_LONG_EDGE / long_edge_points
     return zoom
+
+
+def _render_one(
+    page: fitz.Page, page_index: int, document_id: str, out_dir: Path, force: bool
+) -> RenderedPage:
+    """Rasterize a single page, reusing the file on disk unless force is set."""
+    image_path = out_dir / f"page_{page_index:04d}.{config.PAGE_IMAGE_FORMAT}"
+
+    if image_path.exists() and not force:
+        # Resumable: a run that died midway skips everything already written.
+        # PIL reads only the header here, not the pixel data.
+        with Image.open(image_path) as existing:
+            width, height = existing.size
+    else:
+        zoom = _zoom_for_page(page)
+        # alpha=False drops the unused transparency channel: 25% less memory
+        # per page, smaller files, and RGB is what the encoders expect anyway.
+        pixmap = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), alpha=False)
+        pixmap.save(image_path)
+        width, height = pixmap.width, pixmap.height
+
+    return RenderedPage(
+        page_index=page_index,
+        page_id=ids.page_id(document_id, page_index),
+        image_path=image_path,
+        width=width,
+        height=height,
+    )
