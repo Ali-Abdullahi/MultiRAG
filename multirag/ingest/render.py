@@ -26,3 +26,17 @@ class RenderedPage:
     image_path: Path
     width: int
     height: int
+
+
+def _zoom_for_page(page: fitz.Page) -> float:
+    """Scale factor to render this page at RENDER_DPI, clamped for huge pages.
+
+    DPI is relative to physical size, so an A0 plan at 200 DPI is ~62M pixels
+    and ~186MB uncompressed. Oversized pages are scaled down to keep memory
+    bounded; ordinary letter and A4 pages never hit the ceiling.
+    """
+    zoom = config.RENDER_DPI / PDF_NATIVE_DPI
+    long_edge_points = max(page.rect.width, page.rect.height)
+    if long_edge_points * zoom > config.MAX_PIXELS_LONG_EDGE:
+        zoom = config.MAX_PIXELS_LONG_EDGE / long_edge_points
+    return zoom
