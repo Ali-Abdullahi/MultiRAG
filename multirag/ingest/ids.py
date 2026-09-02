@@ -23,3 +23,13 @@ def sha256_file(path: Path) -> str:
         while chunk := handle.read(_CHUNK_BYTES):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def doc_id(pdf_path: Path) -> str:
+    """Stable id for a document, derived only from its bytes."""
+    return sha256_file(pdf_path)[:DOC_ID_LENGTH]
+
+
+def page_id(document_id: str, page_index: int) -> str:
+    """Stable id for one page. Zero-padded so ids sort in reading order."""
+    return f"{document_id}-p{page_index:04d}"
