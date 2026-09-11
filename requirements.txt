@@ -4,3 +4,9 @@ pillow==10.4.0
 
 # Phase 2 - embedding.
 numpy==2.1.3
+# colpali-engine is the ViDoRe team's reference implementation: it owns the
+# late-interaction projection head and the per-model processors. Hand-rolling
+# those is how you end up with vectors that look fine and retrieve badly.
+colpali-engine==0.3.18
+torch==2.13.0
+transformers==5.17.0
