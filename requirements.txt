@@ -13,3 +13,8 @@ transformers==5.17.0
 
 # Phase 3 - vector index. Embedded/on-disk mode; no server to run.
 qdrant-client==1.19.0
+
+# Phase 5 - generation. The generator is provider-agnostic; this is needed only
+# for the bundled Claude backend. The 'echo' backend needs nothing, and other
+# providers can be registered in generate/factory.py without adding deps here.
+anthropic>=0.40
