@@ -20,3 +20,18 @@ from multirag import config
 # fp16 carries ~3 decimal digits: the MaxSim score shift is far below retrieval
 # noise, and it halves disk and read time across a corpus.
 STORAGE_DTYPE = np.float16
+
+
+def document_dir(document_id: str) -> Path:
+    """Directory holding one document's page vectors."""
+    return config.EMBEDDINGS_DIR / document_id
+
+
+def vector_path(document_id: str, page_index: int) -> Path:
+    """Path for one page's vector matrix. Zero-padded to sort in reading order."""
+    return document_dir(document_id) / f"page_{page_index:04d}.npy"
+
+
+def has_vectors(document_id: str, page_index: int) -> bool:
+    """Whether this page has already been embedded."""
+    return vector_path(document_id, page_index).exists()
