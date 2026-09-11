@@ -17,7 +17,7 @@ from pathlib import Path
 
 from multirag import config
 from multirag.embed import store
-from multirag.embed.identity import EncoderInfo
+from multirag.embed.identity import EncoderInfo, resolved_revision
 
 # Bump when this layout changes incompatibly.
 SCHEMA_VERSION = 1
@@ -112,3 +112,43 @@ def read_manifest(document_id: str) -> dict | None:
         return None
     with open(path, encoding="utf-8") as handle:
         return json.load(handle)
+
+
+def stale_reason(
+    manifest: dict,
+    *,
+    render_manifest: dict | None = None,
+    info: EncoderInfo | None = None,
+) -> str | None:
+    """Explain why these vectors no longer match, or None if they still do.
+
+    Checks both links. Pass render_manifest to check the images the vectors were
+    built from; pass info to check against a loaded encoder. With neither, the
+    model is checked against config - which resolves the revision from the local
+    HF cache, so the cheap check needs no model load and no network.
+
+    Schema first: an older layout may not have the other keys at all.
+    """
+    found = manifest.get("schema_version")
+    if found != SCHEMA_VERSION:
+        return f"schema_version {found} != {SCHEMA_VERSION}"
+
+    if render_manifest is not None:
+        want = render_fingerprint(render_manifest)
+        got = manifest.get("render")
+        if got != want:
+            return f"pages were re-rendered: {got} != {want}"
+
+    if info is None:
+        model_id = config.EMBED_MODEL_ID
+        revision = resolved_revision(model_id, config.EMBED_MODEL_REVISION)
+        dim = manifest.get("dim")
+    else:
+        model_id, revision, dim = info.model_id, info.revision, info.dim
+
+    for key, want in (("model_id", model_id), ("model_revision", revision), ("dim", dim)):
+        got = manifest.get(key)
+        if got != want:
+            return f"{key} {got!r} != {want!r}"
+
+    return None
