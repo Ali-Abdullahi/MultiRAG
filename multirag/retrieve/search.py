@@ -33,3 +33,59 @@ class Hit:
     def citation(self) -> str:
         """Human-readable provenance. Page numbers are 1-based for people."""
         return f"{self.source_name} p.{self.page_index + 1}"
+
+
+class Retriever:
+    """An open encoder and an open index, checked to agree with each other.
+
+    Both are expensive: the encoder costs ~8s to load and the embedded Qdrant
+    store takes an exclusive file lock. So a Retriever is built once and reused,
+    and closed when done - a leaked one blocks every later run.
+
+    Use as a context manager to guarantee that.
+    """
+
+    def __init__(self, encoder, client):
+        self._encoder = encoder
+        self._client = client
+
+    @classmethod
+    def open(cls, encoder=None) -> "Retriever":
+        """Load the encoder, open the index, and verify they match.
+
+        The check happens here rather than per query so a mismatch surfaces at
+        startup, when it is cheap to act on, instead of as quietly wrong results.
+        """
+        contract = index_manifest.read_manifest()
+        if contract is None:
+            raise RetrievalMismatchError("nothing indexed yet; run index_document first")
+
+        if encoder is None:
+            from multirag.embed.encoder import PageEncoder
+
+            encoder = PageEncoder.load()
+
+        info = encoder.info
+        for key, want in (
+            ("model_id", info.model_id),
+            ("model_revision", info.revision),
+            ("dim", info.dim),
+        ):
+            got = contract.get(key)
+            if got != want:
+                raise RetrievalMismatchError(
+                    f"index was built with {key} {got!r}, querying with {want!r}: "
+                    "re-index, or point at the collection that matches"
+                )
+
+        return cls(encoder, qc.open_client())
+
+    def close(self) -> None:
+        """Release the Qdrant file lock."""
+        self._client.close()
+
+    def __enter__(self) -> "Retriever":
+        return self
+
+    def __exit__(self, *exc_info) -> None:
+        self.close()

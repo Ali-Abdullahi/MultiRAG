@@ -77,3 +77,9 @@ QDRANT_DATATYPE = "float16"
 # roughly 4.7MB - large enough to amortize round trips, small enough that a
 # failed batch is cheap to retry.
 QDRANT_UPSERT_BATCH = 8
+
+# --- Retrieval (Phase 4) ---------------------------------------------------
+
+# Pages returned per query. Small on purpose: these go to a VLM as images, and
+# every extra page is real tokens and real latency in Phase 5.
+RETRIEVE_TOP_K = 5
