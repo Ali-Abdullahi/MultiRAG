@@ -50,3 +50,30 @@ def _page_record(page_index: int, page_id: str, patches: int, document_id: str) 
         "vectors": str(path.relative_to(config.DATA_DIR)),
         "patches": patches,
     }
+
+
+def build_manifest(
+    render_manifest: dict, info: EncoderInfo, pages: list[dict]
+) -> dict:
+    """Assemble the embedding manifest for one document.
+
+    Carries the encoder's identity and the render fingerprint it was built
+    against, so both links in the chain can be checked later.
+    """
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "doc_id": render_manifest["doc_id"],
+        "model_id": info.model_id,
+        "model_revision": info.revision,
+        "dim": info.dim,
+        "storage_dtype": str(store.STORAGE_DTYPE.__name__),
+        # Provenance only: which box produced this. Never checked for staleness -
+        # cpu and cuda give numerically different vectors, but not differently
+        # *meaningful* ones, and re-embedding a corpus to change device is absurd.
+        "device": info.device,
+        "compute_dtype": info.dtype,
+        "render": render_fingerprint(render_manifest),
+        "page_count": len(pages),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "pages": pages,
+    }
