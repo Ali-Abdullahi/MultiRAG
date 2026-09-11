@@ -21,3 +21,32 @@ from multirag.embed.encoder import EncoderInfo
 
 # Bump when this layout changes incompatibly.
 SCHEMA_VERSION = 1
+
+
+# The render settings that determine the pixels. Rendering is deterministic, so
+# identical settings mean byte-identical images: a re-render under the same
+# config leaves existing vectors valid. That is why the fingerprint compares
+# settings rather than timestamps - a fresh created_at is not a reason to
+# recompute 8 seconds of work per page.
+RENDER_FINGERPRINT_KEYS = (
+    "schema_version",
+    "render_dpi",
+    "max_pixels_long_edge",
+    "image_format",
+)
+
+
+def render_fingerprint(render_manifest: dict) -> dict:
+    """The part of a render manifest that decides whether vectors are still valid."""
+    return {key: render_manifest.get(key) for key in RENDER_FINGERPRINT_KEYS}
+
+
+def _page_record(page_index: int, page_id: str, patches: int, document_id: str) -> dict:
+    """Serialize one embedded page. Paths stay relative to DATA_DIR, as in Phase 1."""
+    path = store.vector_path(document_id, page_index)
+    return {
+        "page_index": page_index,
+        "page_id": page_id,
+        "vectors": str(path.relative_to(config.DATA_DIR)),
+        "patches": patches,
+    }
