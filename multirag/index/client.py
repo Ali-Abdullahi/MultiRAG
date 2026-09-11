@@ -43,3 +43,27 @@ def _vector_params(dim: int) -> models.VectorParams:
         hnsw_config=models.HnswConfigDiff(m=0),
         on_disk=True,
     )
+
+
+def ensure_collection(client: QdrantClient, dim: int) -> bool:
+    """Create the collection if absent. Returns True if it was created.
+
+    Never recreates an existing collection: that would silently drop every
+    indexed page. A collection built for the wrong model is caught upstream by
+    the index manifest, which can then say so instead of destroying data.
+    """
+    if client.collection_exists(config.QDRANT_COLLECTION):
+        return False
+    client.create_collection(
+        collection_name=config.QDRANT_COLLECTION,
+        vectors_config=_vector_params(dim),
+    )
+    return True
+
+
+def collection_dim(client: QdrantClient) -> int | None:
+    """The vector width the collection was built for, or None if it is absent."""
+    if not client.collection_exists(config.QDRANT_COLLECTION):
+        return None
+    info = client.get_collection(config.QDRANT_COLLECTION)
+    return info.config.params.vectors.size
