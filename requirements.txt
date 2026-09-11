@@ -10,3 +10,6 @@ numpy==2.1.3
 colpali-engine==0.3.18
 torch==2.13.0
 transformers==5.17.0
+
+# Phase 3 - vector index. Embedded/on-disk mode; no server to run.
+qdrant-client==1.19.0
