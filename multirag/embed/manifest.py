@@ -17,7 +17,7 @@ from pathlib import Path
 
 from multirag import config
 from multirag.embed import store
-from multirag.embed.encoder import EncoderInfo
+from multirag.embed.identity import EncoderInfo
 
 # Bump when this layout changes incompatibly.
 SCHEMA_VERSION = 1
