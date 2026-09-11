@@ -36,3 +36,29 @@ def select_dtype(device: str) -> torch.dtype:
     stays fp32 because bf16 on CPU is emulated and slower, not faster.
     """
     return torch.float32 if device == "cpu" else torch.bfloat16
+
+
+@dataclass(frozen=True)
+class EncoderInfo:
+    """Identity of the model that produced a set of vectors.
+
+    Recorded alongside the vectors for the same reason RENDER_DPI is recorded
+    alongside the images: a query encoded by a different model lands in a
+    different space, and the failure mode is bad rankings, not an exception.
+    """
+
+    model_id: str
+    revision: str
+    dim: int
+    device: str
+    dtype: str
+
+
+def _resolved_revision(model, requested: str) -> str:
+    """The commit actually loaded, not the tag that was asked for.
+
+    transformers records the resolved commit on the config, so this needs no
+    extra network call and stays correct offline. Falls back to the requested
+    string when unavailable - better an honest "main" than a fabricated sha.
+    """
+    return getattr(model.config, "_commit_hash", None) or requested
