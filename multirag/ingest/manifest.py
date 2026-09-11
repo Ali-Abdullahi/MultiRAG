@@ -102,3 +102,30 @@ def page_image_path(page_record: dict) -> Path:
     Phase 2 should use rather than rebuilding the path convention itself.
     """
     return config.DATA_DIR / page_record["image"]
+
+
+def stale_reason(manifest: dict) -> str | None:
+    """Explain why a manifest no longer matches current config, or None if it does.
+
+    This is the check the recorded settings exist for. Embeddings are a function
+    of the pixels, so a manifest rendered under different settings describes
+    images that no longer correspond to the vectors in the index. Returning the
+    reason rather than a bare bool means the caller can say what to re-run.
+
+    Schema is checked first: an older layout may not even have the other keys.
+    """
+    found = manifest.get("schema_version")
+    if found != SCHEMA_VERSION:
+        return f"schema_version {found} != {SCHEMA_VERSION}"
+
+    expected = {
+        "render_dpi": config.RENDER_DPI,
+        "max_pixels_long_edge": config.MAX_PIXELS_LONG_EDGE,
+        "image_format": config.PAGE_IMAGE_FORMAT,
+    }
+    for key, want in expected.items():
+        got = manifest.get(key)
+        if got != want:
+            return f"{key} {got!r} != {want!r}"
+
+    return None
