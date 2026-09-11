@@ -22,13 +22,20 @@ SYSTEM_PROMPT = (
 
 
 def _downscaled(image: Image.Image) -> Image.Image:
-    """Shrink to VLM_MAX_IMAGE_EDGE on the long edge, never enlarge."""
+    """Shrink to VLM_MAX_IMAGE_EDGE on the long edge, never enlarge.
+
+    BOX, not LANCZOS. Measured on a 1700x2200 page: both cut image tokens from
+    ~4986 to ~2533, but LANCZOS ringing around text adds gray levels that PNG
+    cannot pack, inflating the file from 371KB to 580KB - larger than the
+    original it replaced. BOX is plain area averaging, the standard choice for
+    downscaling, and lands at 350KB with no ringing halos around small text.
+    """
     longest = max(image.size)
     if longest <= config.VLM_MAX_IMAGE_EDGE:
         return image
     scale = config.VLM_MAX_IMAGE_EDGE / longest
     size = (max(1, round(image.width * scale)), max(1, round(image.height * scale)))
-    return image.resize(size, Image.LANCZOS)
+    return image.resize(size, Image.BOX)
 
 
 def load_page_images(hits: list[Hit]) -> list[PageImage]:
@@ -42,7 +49,7 @@ def load_page_images(hits: list[Hit]) -> list[PageImage]:
         with Image.open(hit.image_path) as image:
             prepared = _downscaled(image.convert("RGB"))
             buffer = io.BytesIO()
-            prepared.save(buffer, format="PNG")
+            prepared.save(buffer, format="PNG", optimize=True)
         pages.append(
             PageImage(
                 data=buffer.getvalue(),

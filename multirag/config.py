@@ -89,8 +89,8 @@ RETRIEVE_TOP_K = 5
 
 # Long edge, in pixels, for images sent to a vision model. Pages are rendered at
 # 200 DPI (~2200px) for retrieval quality, but most hosted vision models downscale
-# above ~1568px anyway. Sending the full-size page spends upload bandwidth and
-# image tokens on detail the model discards. Retrieval keeps the big version.
+# above ~1568px anyway. Measured on one page: this halves image tokens (~4986 ->
+# ~2533), which is the cost that matters. Retrieval keeps the full-size image.
 VLM_MAX_IMAGE_EDGE = 1568
 
 # Backend name and model, both overridable by environment so a clone can point
