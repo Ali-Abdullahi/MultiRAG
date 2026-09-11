@@ -35,3 +35,26 @@ def vector_path(document_id: str, page_index: int) -> Path:
 def has_vectors(document_id: str, page_index: int) -> bool:
     """Whether this page has already been embedded."""
     return vector_path(document_id, page_index).exists()
+
+
+def save_vectors(document_id: str, page_index: int, vectors: np.ndarray) -> Path:
+    """Write one page's vector matrix atomically. Returns the path written.
+
+    Same temp-then-rename discipline as the manifest writer, for the same
+    reason: a half-written .npy that still loads is worse than one that fails
+    loudly, because it would be indexed as if it were a complete page.
+    """
+    if vectors.ndim != 2:
+        raise ValueError(f"expected a 2D (patches, dim) matrix, got shape {vectors.shape}")
+
+    path = vector_path(document_id, page_index)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = path.with_name(path.name + ".tmp")
+
+    with open(temp_path, "wb") as handle:
+        np.save(handle, vectors.astype(STORAGE_DTYPE, copy=False))
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(temp_path, path)
+
+    return path
