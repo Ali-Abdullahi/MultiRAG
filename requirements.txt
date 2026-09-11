@@ -1,3 +1,6 @@
 # Phase 1 - ingestion only. Grown deliberately, one phase at a time.
 pymupdf==1.24.10
 pillow==10.4.0
+
+# Phase 2 - embedding.
+numpy==2.1.3
