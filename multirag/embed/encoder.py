@@ -105,3 +105,36 @@ class PageEncoder:
             dtype=str(dtype).removeprefix("torch."),
         )
         return cls(model, processor, info)
+
+    @torch.no_grad()
+    def _encode(self, batch) -> list[np.ndarray]:
+        """Run one prepared batch and split it back into per-item matrices.
+
+        Padded positions are dropped using the attention mask. This matters more
+        than it looks: MaxSim takes a max over patches, so a leftover pad vector
+        can win that max and inflate a score with a position that does not exist.
+
+        bfloat16 has no numpy equivalent, so results are cast to float32 on the
+        way out - which is also the dtype every downstream consumer wants.
+        """
+        batch = {key: value.to(self._model.device) for key, value in batch.items()}
+        embeddings = self._model(**batch).to(torch.float32).cpu().numpy()
+
+        mask = batch.get("attention_mask")
+        if mask is None:
+            return list(embeddings)
+        keep = mask.cpu().numpy().astype(bool)
+        return [item[rows] for item, rows in zip(embeddings, keep)]
+
+    def encode_pages(self, images) -> list[np.ndarray]:
+        """Embed page images. Returns one (patches, dim) matrix per image."""
+        return self._encode(self._processor.process_images(images))
+
+    def encode_queries(self, queries: list[str]) -> list[np.ndarray]:
+        """Embed text queries. Returns one (tokens, dim) matrix per query.
+
+        Queries go through a different processor path than images - the model is
+        trained with distinct prefixes for each - so Phase 4 must call this, not
+        encode_pages, or the two sides land in mismatched spaces.
+        """
+        return self._encode(self._processor.process_queries(queries))
