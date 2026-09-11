@@ -31,3 +31,25 @@ def _page_record(page: RenderedPage) -> dict:
         "width": page.width,
         "height": page.height,
     }
+
+
+def build_manifest(
+    document_id: str, pdf_path: Path, pages: list[RenderedPage]
+) -> dict:
+    """Assemble the manifest for one ingested document.
+
+    Only the source *name* is kept, not its path: the bytes are the identity,
+    the filename is a human label. Every setting that shaped the images is
+    recorded alongside them so Phase 2 can compare rather than assume.
+    """
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "doc_id": document_id,
+        "source_name": Path(pdf_path).name,
+        "page_count": len(pages),
+        "render_dpi": config.RENDER_DPI,
+        "max_pixels_long_edge": config.MAX_PIXELS_LONG_EDGE,
+        "image_format": config.PAGE_IMAGE_FORMAT,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "pages": [_page_record(page) for page in pages],
+    }
