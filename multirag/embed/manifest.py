@@ -41,7 +41,7 @@ def render_fingerprint(render_manifest: dict) -> dict:
     return {key: render_manifest.get(key) for key in RENDER_FINGERPRINT_KEYS}
 
 
-def _page_record(page_index: int, page_id: str, patches: int, document_id: str) -> dict:
+def page_record(page_index: int, page_id: str, patches: int, document_id: str) -> dict:
     """Serialize one embedded page. Paths stay relative to DATA_DIR, as in Phase 1."""
     path = store.vector_path(document_id, page_index)
     return {
@@ -53,15 +53,24 @@ def _page_record(page_index: int, page_id: str, patches: int, document_id: str) 
 
 
 def build_manifest(
-    render_manifest: dict, info: EncoderInfo, pages: list[dict]
+    render_manifest: dict,
+    info: EncoderInfo,
+    pages: list[dict],
+    *,
+    complete: bool = True,
 ) -> dict:
     """Assemble the embedding manifest for one document.
 
     Carries the encoder's identity and the render fingerprint it was built
     against, so both links in the chain can be checked later.
+
+    complete=False marks a checkpoint written mid-run: the pages listed are
+    genuinely done, but the document is not. A consumer that indexes only
+    complete documents can tell the difference.
     """
     return {
         "schema_version": SCHEMA_VERSION,
+        "complete": complete,
         "doc_id": render_manifest["doc_id"],
         "model_id": info.model_id,
         "model_revision": info.revision,
