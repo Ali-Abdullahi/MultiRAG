@@ -43,3 +43,29 @@ def read_manifest() -> dict | None:
 def write_manifest(manifest: dict) -> Path:
     """Write the collection contract atomically."""
     return jsonio.write_atomic(manifest_path(), manifest)
+
+
+def mismatch_reason(manifest: dict, embed_manifest: dict) -> str | None:
+    """Explain why these embeddings do not belong in this collection.
+
+    Not called "stale": the earlier manifests describe artifacts that can simply
+    be rebuilt, but a populated collection is shared state. A mismatch here means
+    the caller must choose - rebuild the collection, or point at a different one -
+    so the answer is a reason to refuse, not a trigger to recompute.
+    """
+    found = manifest.get("schema_version")
+    if found != SCHEMA_VERSION:
+        return f"schema_version {found} != {SCHEMA_VERSION}"
+
+    expected = {
+        "model_id": embed_manifest["model_id"],
+        "model_revision": embed_manifest["model_revision"],
+        "dim": embed_manifest["dim"],
+        "collection": config.QDRANT_COLLECTION,
+    }
+    for key, want in expected.items():
+        got = manifest.get(key)
+        if got != want:
+            return f"{key} {got!r} != {want!r}"
+
+    return None
