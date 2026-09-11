@@ -6,6 +6,7 @@ device, dtype, and autograd concerns.
 """
 
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -54,14 +55,27 @@ class EncoderInfo:
     dtype: str
 
 
-def _resolved_revision(model, requested: str) -> str:
-    """The commit actually loaded, not the tag that was asked for.
+def _resolved_revision(model_id: str, requested: str) -> str:
+    """The commit of the adapter repo actually on disk, not the tag asked for.
 
-    transformers records the resolved commit on the config, so this needs no
-    extra network call and stays correct offline. Falls back to the requested
-    string when unavailable - better an honest "main" than a fabricated sha.
+    Deliberately not model.config._commit_hash: colSmol is a LoRA adapter over a
+    separate base repo, and the loaded config carries the *base* model's commit.
+    Recording that would pin the wrong repo - the adapter holds the projection
+    head, so it is the adapter's commit that decides what space vectors land in.
+
+    The HF cache stores snapshots under .../snapshots/<sha>/, so the resolved
+    commit can be read from the path with no network call. Falls back to the
+    requested string - an honest "main" beats a fabricated sha.
     """
-    return getattr(model.config, "_commit_hash", None) or requested
+    from huggingface_hub import try_to_load_from_cache
+
+    for filename in ("adapter_config.json", "config.json"):
+        cached = try_to_load_from_cache(model_id, filename, revision=requested)
+        if isinstance(cached, str):
+            parts = Path(cached).parts
+            if "snapshots" in parts:
+                return parts[parts.index("snapshots") + 1]
+    return requested
 
 
 class PageEncoder:
@@ -99,7 +113,7 @@ class PageEncoder:
 
         info = EncoderInfo(
             model_id=model_id,
-            revision=_resolved_revision(model, revision),
+            revision=_resolved_revision(model_id, revision),
             dim=int(model.dim),
             device=device,
             dtype=str(dtype).removeprefix("torch."),
