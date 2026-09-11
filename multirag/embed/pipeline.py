@@ -19,3 +19,19 @@ from multirag.ingest import manifest as render_manifest_mod
 
 class StaleRenderError(RuntimeError):
     """Raised when the page images themselves no longer match the render config."""
+
+
+def _resumable_pages(document_id: str, existing: dict | None) -> dict[int, dict]:
+    """Page records from a previous run that can be trusted and skipped.
+
+    A record is only reusable if its .npy is still on disk. The manifest having
+    been checked for staleness by the caller is what makes the rest safe: these
+    vectors came from the model and render settings currently in force.
+    """
+    if not existing:
+        return {}
+    return {
+        record["page_index"]: record
+        for record in existing["pages"]
+        if store.has_vectors(document_id, record["page_index"])
+    }
