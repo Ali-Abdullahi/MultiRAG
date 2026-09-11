@@ -62,3 +62,46 @@ def _resolved_revision(model, requested: str) -> str:
     string when unavailable - better an honest "main" than a fabricated sha.
     """
     return getattr(model.config, "_commit_hash", None) or requested
+
+
+class PageEncoder:
+    """A loaded late-interaction encoder, pinned to one model and device.
+
+    Construct with PageEncoder.load(). Loading is expensive - weights, processor,
+    and a device transfer - so one instance should embed a whole corpus rather
+    than being rebuilt per document.
+    """
+
+    def __init__(self, model, processor, info: EncoderInfo):
+        self._model = model
+        self._processor = processor
+        self.info = info
+
+    @classmethod
+    def load(
+        cls,
+        model_id: str | None = None,
+        revision: str | None = None,
+        device: str | None = None,
+    ) -> "PageEncoder":
+        """Load weights and processor onto the best available device."""
+        from colpali_engine.models import ColIdefics3, ColIdefics3Processor
+
+        model_id = model_id or config.EMBED_MODEL_ID
+        revision = revision or config.EMBED_MODEL_REVISION
+        device = device or select_device()
+        dtype = select_dtype(device)
+
+        model = ColIdefics3.from_pretrained(
+            model_id, revision=revision, dtype=dtype, device_map=device
+        ).eval()
+        processor = ColIdefics3Processor.from_pretrained(model_id, revision=revision)
+
+        info = EncoderInfo(
+            model_id=model_id,
+            revision=_resolved_revision(model, revision),
+            dim=int(model.dim),
+            device=device,
+            dtype=str(dtype).removeprefix("torch."),
+        )
+        return cls(model, processor, info)
