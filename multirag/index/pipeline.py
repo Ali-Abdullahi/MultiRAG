@@ -65,3 +65,66 @@ def _points(document_id: str, embedded: dict, render: dict) -> list[models.Point
             )
         )
     return points
+
+
+def index_document(document_id: str, *, client=None, force: bool = False, on_batch=None) -> dict:
+    """Index one embedded document into the collection. Returns a summary.
+
+    Refuses rather than repairs on three counts: vectors that do not exist, an
+    incomplete embedding run, and embeddings that disagree with the collection's
+    model. The first two are recoverable by running the earlier phase; the third
+    is a decision only the caller can make.
+
+    Pass a client to index a corpus under one open store - embedded Qdrant takes
+    an exclusive lock, so opening one per document would serialize badly and
+    fail outright if anything else holds it.
+    """
+    embedded = embed_manifest.read_manifest(document_id)
+    if embedded is None:
+        raise NotEmbeddedError(f"{document_id} has no embeddings; run embed_document first")
+    if not embedded.get("complete"):
+        raise NotEmbeddedError(
+            f"{document_id} was embedded only partially ({embedded['page_count']} pages); "
+            "finish embed_document before indexing"
+        )
+
+    render = render_manifest_mod.read_manifest(document_id)
+    reason = embed_manifest.stale_reason(embedded, render_manifest=render)
+    if reason:
+        raise NotEmbeddedError(f"re-embed {document_id}: {reason}")
+
+    owns_client = client is None
+    client = client or qc.open_client()
+    try:
+        contract = index_manifest.read_manifest()
+        if contract is None:
+            contract = index_manifest.build_manifest(embedded)
+            index_manifest.write_manifest(contract)
+        else:
+            conflict = index_manifest.mismatch_reason(contract, embedded)
+            if conflict:
+                raise IndexConflictError(
+                    f"{document_id} does not belong in collection "
+                    f"{config.QDRANT_COLLECTION!r}: {conflict}"
+                )
+
+        qc.ensure_collection(client, embedded["dim"])
+
+        points = _points(document_id, embedded, render)
+        batch_size = config.QDRANT_UPSERT_BATCH
+        for start in range(0, len(points), batch_size):
+            batch = points[start : start + batch_size]
+            client.upsert(collection_name=config.QDRANT_COLLECTION, points=batch, wait=True)
+            if on_batch:
+                on_batch(min(start + len(batch), len(points)), len(points))
+
+        return {
+            "doc_id": document_id,
+            "collection": config.QDRANT_COLLECTION,
+            "points": len(points),
+            "model_id": contract["model_id"],
+            "dim": contract["dim"],
+        }
+    finally:
+        if owns_client:
+            client.close()
