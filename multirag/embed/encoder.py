@@ -15,28 +15,31 @@ from multirag import config
 
 
 def select_device() -> str:
-    """Pick the best available device.
+    """Resolve the device to load onto.
 
-    MPS is Apple's GPU backend and is the difference between seconds and minutes
-    per page on this machine. CUDA is here so the same code runs unchanged on a
-    Colab box; CPU is the honest fallback.
+    An explicit config.EMBED_DEVICE always wins, including "mps" for anyone who
+    wants to retry it. Otherwise CUDA when present, CPU as the honest default.
+
+    MPS is not auto-selected on purpose; see the note in config.EMBED_DEVICE for
+    the measurements. Picking a device that hangs or segfaults is worse than
+    picking a slow one, and "the GPU is right there" is not a reason to default
+    to a backend that does not work.
     """
-    if torch.backends.mps.is_available():
-        return "mps"
-    if torch.cuda.is_available():
-        return "cuda"
-    return "cpu"
+    if config.EMBED_DEVICE != "auto":
+        return config.EMBED_DEVICE
+    return "cuda" if torch.cuda.is_available() else "cpu"
 
 
 def select_dtype(device: str) -> torch.dtype:
     """Pick a compute dtype for the device.
 
-    bfloat16 halves the weight footprint, which matters on 8GB of unified memory
-    shared with the OS. It keeps fp32's exponent range, so it degrades far more
-    gracefully than fp16 - no rescaling, no inf on an unlucky activation. CPU
-    stays fp32 because bf16 on CPU is emulated and slower, not faster.
+    bfloat16 halves the weight footprint on CUDA and keeps fp32's exponent
+    range, so it degrades far more gracefully than fp16 - no loss scaling, no
+    inf on an unlucky activation. CPU stays fp32 because bf16 there is emulated
+    and slower, not faster. MPS stays fp32 because its bf16 kernels for this
+    model do not work at all (see config.EMBED_DEVICE).
     """
-    return torch.float32 if device == "cpu" else torch.bfloat16
+    return torch.bfloat16 if device == "cuda" else torch.float32
 
 
 @dataclass(frozen=True)
