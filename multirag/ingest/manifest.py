@@ -6,6 +6,7 @@ to run against stale artifacts instead of silently embedding mismatched pages.
 """
 
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -53,3 +54,29 @@ def build_manifest(
         "created_at": datetime.now(timezone.utc).isoformat(),
         "pages": [_page_record(page) for page in pages],
     }
+
+
+def manifest_path(document_id: str) -> Path:
+    """Location of a document's manifest. One file per document."""
+    return config.MANIFESTS_DIR / f"{document_id}.json"
+
+
+def write_manifest(manifest: dict) -> Path:
+    """Write a manifest atomically. Returns the path written.
+
+    The write goes to a temp file that is flushed, fsynced, then renamed over
+    the target. os.replace is atomic, so a crash mid-write leaves the previous
+    manifest intact rather than a half-written file that parses as garbage or,
+    worse, parses fine but is missing pages.
+    """
+    path = manifest_path(manifest["doc_id"])
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = path.with_name(path.name + ".tmp")
+
+    with open(temp_path, "w", encoding="utf-8") as handle:
+        json.dump(manifest, handle, indent=2, sort_keys=True)
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(temp_path, path)
+
+    return path
