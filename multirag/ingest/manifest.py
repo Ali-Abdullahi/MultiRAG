@@ -80,3 +80,25 @@ def write_manifest(manifest: dict) -> Path:
     os.replace(temp_path, path)
 
     return path
+
+
+def read_manifest(document_id: str) -> dict | None:
+    """Load a manifest, or None if the document has never been ingested.
+
+    Absence is a normal answer, not an error: callers use it to decide whether
+    ingestion needs to run at all.
+    """
+    path = manifest_path(document_id)
+    if not path.exists():
+        return None
+    with open(path, encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+def page_image_path(page_record: dict) -> Path:
+    """Resolve a manifest page record back to an absolute image path.
+
+    The inverse of the relative path stored by _page_record, and the accessor
+    Phase 2 should use rather than rebuilding the path convention itself.
+    """
+    return config.DATA_DIR / page_record["image"]
