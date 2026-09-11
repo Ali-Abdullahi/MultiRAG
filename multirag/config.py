@@ -72,3 +72,8 @@ QDRANT_DISTANCE = "Cosine"
 # halves what a multivector collection holds in memory. A page is ~1139 vectors,
 # so a 10k-page corpus is ~11M vectors: the factor of two is not cosmetic on 8GB.
 QDRANT_DATATYPE = "float16"
+
+# Pages per upsert. A page carries ~1139 x 128 floats, so a batch of 8 moves
+# roughly 4.7MB - large enough to amortize round trips, small enough that a
+# failed batch is cheap to retry.
+QDRANT_UPSERT_BATCH = 8

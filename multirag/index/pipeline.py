@@ -26,3 +26,42 @@ class IndexConflictError(RuntimeError):
 
 class NotEmbeddedError(RuntimeError):
     """Raised when a document has no complete set of vectors to index."""
+
+
+def _payload(embed_page: dict, render_page: dict, render: dict) -> dict:
+    """What a retrieved point needs to carry.
+
+    Phase 5 hands page images to a VLM, so the image path travels with the point:
+    a hit becomes a file to open without a second trip through the manifests.
+    source_name and page_index are here to cite the answer - "page 3 of X.pdf" is
+    the difference between an answer and a verifiable one.
+    """
+    return {
+        "doc_id": render["doc_id"],
+        "source_name": render["source_name"],
+        "page_index": embed_page["page_index"],
+        "page_id": embed_page["page_id"],
+        "image": render_page["image"],
+        "patches": embed_page["patches"],
+    }
+
+
+def _points(document_id: str, embedded: dict, render: dict) -> list[models.PointStruct]:
+    """Build every point for one document.
+
+    Vectors are loaded as fp32 and handed over as nested lists - Qdrant's client
+    wants plain Python here, and the collection stores them back as fp16 anyway.
+    """
+    by_index = {page["page_index"]: page for page in render["pages"]}
+    points = []
+    for page in embedded["pages"]:
+        index = page["page_index"]
+        vectors = store.load_vectors(document_id, index)
+        points.append(
+            models.PointStruct(
+                id=ids.page_point_id(page["page_id"]),
+                vector=vectors.tolist(),
+                payload=_payload(page, by_index[index], render),
+            )
+        )
+    return points
