@@ -45,3 +45,13 @@ EMBED_MODEL_REVISION = "main"
 # Late-interaction models emit one vector per image patch, so a single page is
 # already a batch-sized workload. Raise only if memory headroom proves it safe.
 EMBED_BATCH_SIZE = 1
+
+# Device for the encoder. "auto" picks CUDA when present and CPU otherwise.
+#
+# MPS is deliberately NOT auto-selected. Measured on this M1 with torch 2.13.0
+# and colSmol-256M: bfloat16 spun for 38 minutes of CPU across 3 cores with a
+# 9.5MB resident set and never finished loading, and float32 segfaulted (139)
+# partway through the weights. CPU loads in seconds at under 1GB. Set this to
+# "mps" explicitly to retry on a newer torch - the failure is in the backend,
+# not the model, so it is worth rechecking after an upgrade.
+EMBED_DEVICE = "auto"
