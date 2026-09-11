@@ -7,6 +7,7 @@ manifest so downstream stages can detect the mismatch instead of silently
 retrieving against stale vectors.
 """
 
+import os
 from pathlib import Path
 
 # Repository root, resolved from this file so the package works from any cwd.
@@ -83,3 +84,16 @@ QDRANT_UPSERT_BATCH = 8
 # Pages returned per query. Small on purpose: these go to a VLM as images, and
 # every extra page is real tokens and real latency in Phase 5.
 RETRIEVE_TOP_K = 5
+
+# --- Generation (Phase 5) --------------------------------------------------
+
+# Long edge, in pixels, for images sent to a vision model. Pages are rendered at
+# 200 DPI (~2200px) for retrieval quality, but most hosted vision models downscale
+# above ~1568px anyway. Sending the full-size page spends upload bandwidth and
+# image tokens on detail the model discards. Retrieval keeps the big version.
+VLM_MAX_IMAGE_EDGE = 1568
+
+# Backend name and model, both overridable by environment so a clone can point
+# at its own provider without editing code. No credentials live in config.
+GENERATOR_BACKEND = os.environ.get("MULTIRAG_GENERATOR", "claude")
+GENERATOR_MODEL = os.environ.get("MULTIRAG_GENERATOR_MODEL", "claude-opus-5")
