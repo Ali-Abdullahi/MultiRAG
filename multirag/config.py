@@ -55,3 +55,20 @@ EMBED_BATCH_SIZE = 1
 # "mps" explicitly to retry on a newer torch - the failure is in the backend,
 # not the model, so it is worth rechecking after an upgrade.
 EMBED_DEVICE = "auto"
+
+# --- Index (Phase 3) -------------------------------------------------------
+
+# Embedded Qdrant: a directory, not a server. One less moving part to run, and
+# the storage is content the rest of data/ already treats as regenerable.
+QDRANT_PATH = DATA_DIR / "qdrant"
+QDRANT_COLLECTION = "pages"
+
+# Vectors leave the encoder L2-normalized, so cosine and dot are equivalent here.
+# Cosine is the safer declaration: it stays correct if a future encoder emits
+# unnormalized vectors, where dot would silently start ranking by magnitude.
+QDRANT_DISTANCE = "Cosine"
+
+# Storing the index as float16 mirrors how vectors are already kept on disk, and
+# halves what a multivector collection holds in memory. A page is ~1139 vectors,
+# so a 10k-page corpus is ~11M vectors: the factor of two is not cosmetic on 8GB.
+QDRANT_DATATYPE = "float16"
