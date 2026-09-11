@@ -10,12 +10,10 @@ no longer exist. Neither failure raises an exception on its own; both quietly
 degrade retrieval, which is why they are checked rather than assumed.
 """
 
-import json
-import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-from multirag import config
+from multirag import config, jsonio
 from multirag.embed import store
 from multirag.embed.identity import EncoderInfo, resolved_revision
 
@@ -101,26 +99,12 @@ def manifest_path(document_id: str) -> Path:
 
 def write_manifest(manifest: dict) -> Path:
     """Write an embedding manifest atomically. Returns the path written."""
-    path = manifest_path(manifest["doc_id"])
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = path.with_name(path.name + ".tmp")
-
-    with open(temp_path, "w", encoding="utf-8") as handle:
-        json.dump(manifest, handle, indent=2, sort_keys=True)
-        handle.flush()
-        os.fsync(handle.fileno())
-    os.replace(temp_path, path)
-
-    return path
+    return jsonio.write_atomic(manifest_path(manifest["doc_id"]), manifest)
 
 
 def read_manifest(document_id: str) -> dict | None:
     """Load an embedding manifest, or None if the document was never embedded."""
-    path = manifest_path(document_id)
-    if not path.exists():
-        return None
-    with open(path, encoding="utf-8") as handle:
-        return json.load(handle)
+    return jsonio.read_or_none(manifest_path(document_id))
 
 
 def stale_reason(

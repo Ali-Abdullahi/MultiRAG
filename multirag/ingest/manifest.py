@@ -5,12 +5,10 @@ records the settings the images were produced under, so a later stage can refuse
 to run against stale artifacts instead of silently embedding mismatched pages.
 """
 
-import json
-import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-from multirag import config
+from multirag import config, jsonio
 from multirag.ingest.render import RenderedPage
 
 # Bump when the manifest layout changes incompatibly. Old manifests are then
@@ -62,37 +60,13 @@ def manifest_path(document_id: str) -> Path:
 
 
 def write_manifest(manifest: dict) -> Path:
-    """Write a manifest atomically. Returns the path written.
-
-    The write goes to a temp file that is flushed, fsynced, then renamed over
-    the target. os.replace is atomic, so a crash mid-write leaves the previous
-    manifest intact rather than a half-written file that parses as garbage or,
-    worse, parses fine but is missing pages.
-    """
-    path = manifest_path(manifest["doc_id"])
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = path.with_name(path.name + ".tmp")
-
-    with open(temp_path, "w", encoding="utf-8") as handle:
-        json.dump(manifest, handle, indent=2, sort_keys=True)
-        handle.flush()
-        os.fsync(handle.fileno())
-    os.replace(temp_path, path)
-
-    return path
+    """Write a manifest atomically. Returns the path written."""
+    return jsonio.write_atomic(manifest_path(manifest["doc_id"]), manifest)
 
 
 def read_manifest(document_id: str) -> dict | None:
-    """Load a manifest, or None if the document has never been ingested.
-
-    Absence is a normal answer, not an error: callers use it to decide whether
-    ingestion needs to run at all.
-    """
-    path = manifest_path(document_id)
-    if not path.exists():
-        return None
-    with open(path, encoding="utf-8") as handle:
-        return json.load(handle)
+    """Load a manifest, or None if the document has never been ingested."""
+    return jsonio.read_or_none(manifest_path(document_id))
 
 
 def page_image_path(page_record: dict) -> Path:
