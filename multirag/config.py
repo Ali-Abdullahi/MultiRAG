@@ -27,3 +27,21 @@ MAX_PIXELS_LONG_EDGE = 3000
 # PNG is lossless. JPEG artifacts land hardest on small text and thin table rules,
 # which is exactly the content this pipeline exists to read.
 PAGE_IMAGE_FORMAT = "png"
+
+# --- Embedding (Phase 2) ---------------------------------------------------
+
+EMBEDDINGS_DIR = DATA_DIR / "embeddings"
+
+# ColPali-family encoder. colSmol-256M is the deliberate default: ColPali
+# (PaliGemma-3B) and ColQwen2.5 are ~6GB in fp16 and will thrash or OOM on an
+# 8GB machine. Swap this for a larger checkpoint on bigger hardware or Colab.
+EMBED_MODEL_ID = "vidore/colSmol-256M"
+
+# Pin to a specific commit once verified. "main" is a moving target: the same
+# model id can silently change weights, which would make old vectors and new
+# queries land in different spaces. Resolved value is recorded per document.
+EMBED_MODEL_REVISION = "main"
+
+# Late-interaction models emit one vector per image patch, so a single page is
+# already a batch-sized workload. Raise only if memory headroom proves it safe.
+EMBED_BATCH_SIZE = 1
