@@ -89,3 +89,33 @@ class Retriever:
 
     def __exit__(self, *exc_info) -> None:
         self.close()
+
+    def search(self, query: str, limit: int | None = None) -> list[Hit]:
+        """Rank pages against one query, best first.
+
+        Queries go through encode_queries, never encode_pages: the model is
+        trained with a different prefix per side, and crossing them silently
+        degrades every result.
+
+        Scores are MaxSim sums and are comparable *within* one query only - they
+        scale with query token count, so a longer question scores higher against
+        the same page. Rank them; do not threshold them.
+        """
+        [vectors] = self._encoder.encode_queries([query])
+        response = self._client.query_points(
+            collection_name=config.QDRANT_COLLECTION,
+            query=vectors.tolist(),
+            limit=limit or config.RETRIEVE_TOP_K,
+            with_payload=True,
+        )
+        return [
+            Hit(
+                score=point.score,
+                doc_id=point.payload["doc_id"],
+                source_name=point.payload["source_name"],
+                page_index=point.payload["page_index"],
+                page_id=point.payload["page_id"],
+                image_path=config.DATA_DIR / point.payload["image"],
+            )
+            for point in response.points
+        ]
