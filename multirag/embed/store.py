@@ -58,3 +58,13 @@ def save_vectors(document_id: str, page_index: int, vectors: np.ndarray) -> Path
     os.replace(temp_path, path)
 
     return path
+
+
+def load_vectors(document_id: str, page_index: int, dtype=np.float32) -> np.ndarray:
+    """Load one page's vector matrix, cast for computation.
+
+    Stored compactly in fp16, returned as fp32 by default because that is what
+    every consumer wants: Qdrant takes float32, and accumulating MaxSim dot
+    products in fp16 would compound rounding error across hundreds of patches.
+    """
+    return np.load(vector_path(document_id, page_index)).astype(dtype, copy=False)
