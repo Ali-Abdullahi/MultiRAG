@@ -77,3 +77,38 @@ def build_manifest(
         "created_at": datetime.now(timezone.utc).isoformat(),
         "pages": pages,
     }
+
+
+def manifest_path(document_id: str) -> Path:
+    """Location of a document's embedding manifest.
+
+    Co-located with the vectors it describes, unlike the render manifest which
+    sits in its own directory. Deleting data/embeddings/<doc_id> then removes
+    the manifest and the vectors together - there is no way to end up with a
+    manifest promising vectors that are no longer on disk.
+    """
+    return store.document_dir(document_id) / "manifest.json"
+
+
+def write_manifest(manifest: dict) -> Path:
+    """Write an embedding manifest atomically. Returns the path written."""
+    path = manifest_path(manifest["doc_id"])
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = path.with_name(path.name + ".tmp")
+
+    with open(temp_path, "w", encoding="utf-8") as handle:
+        json.dump(manifest, handle, indent=2, sort_keys=True)
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(temp_path, path)
+
+    return path
+
+
+def read_manifest(document_id: str) -> dict | None:
+    """Load an embedding manifest, or None if the document was never embedded."""
+    path = manifest_path(document_id)
+    if not path.exists():
+        return None
+    with open(path, encoding="utf-8") as handle:
+        return json.load(handle)
