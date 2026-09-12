@@ -69,3 +69,71 @@ def sidebar() -> tuple[str, int]:
             "indexing new documents."
         )
     return backend, top_k
+
+
+def show_hits(hits) -> None:
+    """Render retrieved pages as images with their scores.
+
+    Scores are shown as plain numbers with no bar or percentage. MaxSim sums
+    scale with query length, so they rank pages within one query and mean
+    nothing across queries - a progress bar would imply a confidence this
+    number does not carry.
+    """
+    for column, hit in zip(st.columns(len(hits)), hits):
+        with column:
+            st.image(str(hit.image_path), use_container_width=True)
+            st.caption(f"**{hit.citation}** · score {hit.score:.2f}")
+
+
+def main() -> None:
+    st.title("MultiRAG")
+    st.caption("Ask a question; pages are retrieved as images, never as extracted text.")
+
+    backend, top_k = sidebar()
+
+    question = st.text_input("Question", placeholder="When is the homework due?")
+    if not question:
+        return
+
+    try:
+        retriever = get_retriever()
+    except RetrievalMismatchError as error:
+        st.error(str(error))
+        return
+
+    with st.spinner("Searching..."):
+        hits = retriever.search(question, limit=top_k)
+
+    if not hits:
+        st.info("No pages matched.")
+        return
+
+    st.subheader(f"{len(hits)} pages retrieved")
+    show_hits(hits)
+
+    # Generation is behind its own button on purpose: retrieval is free and
+    # instant, generation costs money and seconds. Nobody should pay for a VLM
+    # call just because they moved a slider.
+    st.divider()
+    if not st.button(f"Generate answer with `{backend}`", type="primary"):
+        return
+
+    try:
+        generator = get_generator(backend)
+    except UnknownBackendError as error:
+        st.error(str(error))
+        return
+
+    with st.spinner(f"Asking {backend}..."):
+        try:
+            answer = generator.answer(question, hits)
+        except Exception as error:  # backends fail in provider-specific ways
+            st.error(f"{type(error).__name__}: {error}")
+            return
+
+    st.subheader("Answer")
+    st.markdown(answer.text)
+    st.caption("Sources: " + " · ".join(answer.sources))
+
+
+main()
