@@ -38,3 +38,34 @@ def get_retriever() -> Retriever:
 def get_generator(name: str):
     """Cached per backend name, so switching backends does not rebuild both."""
     return load_generator(name)
+
+
+def sidebar() -> tuple[str, int]:
+    """Backend and top-k controls. Returns the current selection."""
+    with st.sidebar:
+        st.header("Settings")
+
+        contract = index_manifest.read_manifest()
+        if contract:
+            st.caption(f"Index: `{contract['model_id']}` · dim {contract['dim']}")
+            st.caption(f"Revision `{contract['model_revision'][:8]}`")
+        else:
+            st.warning("Nothing indexed yet.")
+
+        backend = st.selectbox(
+            "Answer backend",
+            ["echo", "claude"],
+            help=(
+                "echo calls no model and needs no credentials - it reports which "
+                "pages would be sent. claude reads ANTHROPIC_API_KEY from your own "
+                "environment."
+            ),
+        )
+        top_k = st.slider("Pages to retrieve", 1, 10, config.RETRIEVE_TOP_K)
+
+        st.divider()
+        st.caption(
+            "This app holds an exclusive lock on the Qdrant store. Stop it before "
+            "indexing new documents."
+        )
+    return backend, top_k
