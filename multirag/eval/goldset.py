@@ -137,3 +137,70 @@ def _resolve(ref: PageRef, corpus: _Corpus, qid: str) -> str:
             f"{pages} page(s). Page numbers in a gold set are 1-based."
         )
     return page_id
+
+
+def _question(record: dict, corpus: _Corpus, seen: set[str]) -> GoldQuestion:
+    """Validate and resolve one question record from the fixture.
+
+    Duplicate ids are refused rather than tolerated: results are keyed by id, so
+    a repeat would quietly overwrite the earlier one and shrink the eval without
+    changing its reported size.
+    """
+    qid = str(record.get("id", "")).strip()
+    if not qid:
+        raise GoldSetError(f"question is missing an id: {record!r}")
+    if qid in seen:
+        raise GoldSetError(f"duplicate question id {qid!r}")
+    seen.add(qid)
+
+    question = str(record.get("question", "")).strip()
+    if not question:
+        raise GoldSetError(f"{qid}: question text is empty")
+
+    relevant = record.get("relevant") or []
+    if not relevant:
+        raise GoldSetError(
+            f"{qid}: no relevant pages listed. A question with no answer page "
+            "scores zero for every retriever and measures nothing."
+        )
+
+    refs = tuple(
+        PageRef(source_name=entry["source_name"], page=int(entry["page"]))
+        for entry in relevant
+    )
+    return GoldQuestion(
+        qid=qid,
+        question=question,
+        relevant=frozenset(_resolve(ref, corpus, qid) for ref in refs),
+        refs=refs,
+    )
+
+
+def load_goldset(name: str) -> GoldSet:
+    """Load a gold set and resolve every page reference against what is ingested.
+
+    Resolution happens at load, before any model is loaded or any query is run:
+    a typo in the fixture should cost a millisecond, not an eval run.
+    """
+    path = goldset_path(name)
+    payload = jsonio.read_or_none(path)
+    if payload is None:
+        available = sorted(p.stem for p in config.EVALSETS_DIR.glob("*.json"))
+        raise GoldSetError(
+            f"no gold set at {path} (available: {', '.join(available) or 'none'})"
+        )
+
+    found = payload.get("schema_version")
+    if found != SCHEMA_VERSION:
+        raise GoldSetError(f"{name}: schema_version {found} != {SCHEMA_VERSION}")
+
+    records = payload.get("questions") or []
+    if not records:
+        raise GoldSetError(f"{name}: gold set has no questions")
+
+    corpus = _load_corpus()
+    seen: set[str] = set()
+    return GoldSet(
+        name=name,
+        questions=tuple(_question(record, corpus, seen) for record in records),
+    )
