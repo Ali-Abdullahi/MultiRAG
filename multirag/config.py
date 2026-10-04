@@ -97,3 +97,15 @@ VLM_MAX_IMAGE_EDGE = 1568
 # at its own provider without editing code. No credentials live in config.
 GENERATOR_BACKEND = os.environ.get("MULTIRAG_GENERATOR", "claude")
 GENERATOR_MODEL = os.environ.get("MULTIRAG_GENERATOR_MODEL", "claude-opus-5")
+
+# --- Eval (Phase 7) --------------------------------------------------------
+
+# Gold sets are hand-written source, not generated output, so they live outside
+# data/ (which is gitignored and regenerable) and are committed with the code.
+# An eval you cannot diff across commits cannot tell you whether a change helped.
+EVALSETS_DIR = PROJECT_ROOT / "evalsets"
+
+# Retrieval is scored at this depth regardless of RETRIEVE_TOP_K. Metrics must
+# not move because a serving default was tuned - otherwise every comparison
+# against an earlier run silently measures two different things.
+EVAL_TOP_K = 5
