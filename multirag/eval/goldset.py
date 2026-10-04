@@ -106,3 +106,34 @@ def _load_corpus() -> _Corpus:
             page_ids[(source_name, page["page_index"])] = page["page_id"]
 
     return _Corpus(page_ids=page_ids, doc_ids=doc_ids)
+
+
+def _resolve(ref: PageRef, corpus: _Corpus, qid: str) -> str:
+    """Turn one human page reference into a page_id, or explain why it cannot be.
+
+    Three distinct failures, each with a different remedy, so each says which:
+    the document was never ingested, the filename is ambiguous across documents,
+    or the page number is outside the document.
+    """
+    candidates = corpus.doc_ids.get(ref.source_name)
+    if not candidates:
+        known = ", ".join(sorted(corpus.doc_ids)) or "nothing ingested"
+        raise GoldSetError(
+            f"{qid}: {ref.citation} names a document that is not ingested "
+            f"(known: {known})"
+        )
+    if len(candidates) > 1:
+        raise GoldSetError(
+            f"{qid}: {ref.citation} is ambiguous - {len(candidates)} documents "
+            f"share that filename ({', '.join(candidates)}); two different PDFs "
+            "cannot be told apart by name, so rename one and re-ingest"
+        )
+
+    page_id = corpus.page_ids.get((ref.source_name, ref.page - 1))
+    if page_id is None:
+        pages = sum(1 for name, _ in corpus.page_ids if name == ref.source_name)
+        raise GoldSetError(
+            f"{qid}: {ref.citation} is out of range - that document has "
+            f"{pages} page(s). Page numbers in a gold set are 1-based."
+        )
+    return page_id
