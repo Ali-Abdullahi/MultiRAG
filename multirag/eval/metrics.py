@@ -40,3 +40,24 @@ def reciprocal_rank(
     """
     rank = rank_of_first_relevant(retrieved, relevant, k)
     return 0.0 if rank is None else 1.0 / rank
+
+
+def recall_at_k(
+    retrieved: Sequence[str], relevant: frozenset[str], k: int
+) -> float:
+    """Fraction of the relevant pages that appear in the top k.
+
+    Set intersection, not a count of matches, so a page returned twice cannot
+    inflate the score. With one relevant page this is 1.0 or 0.0; with several
+    it gives partial credit, which is where it and reciprocal_rank deliberately
+    disagree - a question with two answer pages that found only one scores 1.0
+    reciprocal rank but 0.5 recall. Both are true; they answer different
+    questions, so the report carries both.
+
+    There is no precision@k here on purpose. With one relevant page, precision@5
+    cannot exceed 0.2, so it reads as a failing grade for perfect retrieval. It
+    would be a number nobody could interpret.
+    """
+    if not relevant:
+        raise ValueError("recall is undefined with no relevant pages")
+    return len(relevant & set(retrieved[:k])) / len(relevant)
