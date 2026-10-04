@@ -112,3 +112,58 @@ def _score(question, hits: tuple[Hit, ...], k: int) -> QuestionResult:
         recall=metrics.recall_at_k(retrieved, question.relevant, k),
         reciprocal_rank=metrics.reciprocal_rank(retrieved, question.relevant, k),
     )
+
+
+def run_retrieval(
+    goldset: GoldSet,
+    retriever=None,
+    k: int | None = None,
+    on_question=None,
+) -> RunReport:
+    """Query every question in the gold set and score the results.
+
+    Pass a retriever to reuse one; otherwise one is opened and closed here. The
+    distinction matters because it holds an exclusive lock on the Qdrant
+    directory - a caller that already has one open would deadlock against its
+    own process, and one opened here must be released even if a query raises.
+
+    k defaults to EVAL_TOP_K and is passed explicitly to search, so the serving
+    default in RETRIEVE_TOP_K cannot quietly change what is being measured.
+
+    on_question, if given, is called with each result as it lands. Queries are
+    ~50ms each, but encoding dominates and a few hundred questions is long
+    enough that silence looks like a hang.
+    """
+    k = k or config.EVAL_TOP_K
+
+    contract = index_manifest.read_manifest()
+    if contract is None:
+        raise RuntimeError("nothing indexed yet; run index_document first")
+
+    owned = retriever is None
+    if owned:
+        from multirag.retrieve import Retriever
+
+        retriever = Retriever.open()
+
+    try:
+        results = []
+        for question in goldset.questions:
+            hits = tuple(retriever.search(question.question, limit=k))
+            result = _score(question, hits, k)
+            results.append(result)
+            if on_question is not None:
+                on_question(result)
+    finally:
+        if owned:
+            retriever.close()
+
+    return RunReport(
+        goldset_name=goldset.name,
+        k=k,
+        model_id=contract["model_id"],
+        model_revision=contract["model_revision"],
+        collection=contract["collection"],
+        created_at=datetime.now(timezone.utc).isoformat(),
+        results=tuple(results),
+    )
