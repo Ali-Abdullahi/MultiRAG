@@ -7,11 +7,15 @@ from multirag.eval.goldset import (
     PageRef,
     load_goldset,
 )
+from multirag.eval.runner import QuestionResult, RunReport, run_retrieval
 
 __all__ = [
     "GoldQuestion",
     "GoldSet",
     "GoldSetError",
     "PageRef",
+    "QuestionResult",
+    "RunReport",
     "load_goldset",
+    "run_retrieval",
 ]
