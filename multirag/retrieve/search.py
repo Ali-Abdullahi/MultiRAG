@@ -90,6 +90,17 @@ class Retriever:
     def __exit__(self, *exc_info) -> None:
         self.close()
 
+    @property
+    def page_count(self) -> int:
+        """How many pages are indexed.
+
+        Exposed because this client holds the store's exclusive lock, so a
+        caller cannot open a second one to ask. Eval needs it to know whether
+        its own numbers mean anything: when the whole corpus fits inside the
+        result list, recall@k is 1.0 by construction, not by merit.
+        """
+        return qc.collection_size(self._client)
+
     def search(self, query: str, limit: int | None = None) -> list[Hit]:
         """Rank pages against one query, best first.
 
