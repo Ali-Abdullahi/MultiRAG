@@ -43,3 +43,53 @@ class QuestionResult:
     def expected(self) -> str:
         """Expected pages as a person wrote them, for a failure line."""
         return ", ".join(ref.citation for ref in self.refs)
+
+
+@dataclass(frozen=True)
+class RunReport:
+    """Every question's result, plus the identity of what produced them.
+
+    The identity fields are not bookkeeping. A metric is a number about a
+    specific encoder querying a specific collection; two runs under different
+    encoders are not comparable, and nothing in the number itself says so. Every
+    other stage in this pipeline records the identity of what it produced
+    alongside the artifact - an eval that skipped that would be the one place
+    where a stale comparison passes silently.
+    """
+
+    goldset_name: str
+    k: int
+    model_id: str
+    model_revision: str
+    collection: str
+    created_at: str
+    results: tuple[QuestionResult, ...]
+
+    def __len__(self) -> int:
+        return len(self.results)
+
+    @property
+    def hit_rate(self) -> float:
+        """Share of questions with at least one relevant page in the top k."""
+        return self._mean(1.0 if r.found else 0.0 for r in self.results)
+
+    @property
+    def mean_recall(self) -> float:
+        """Mean recall@k. Below hit_rate exactly when a multi-page question
+        found some of its pages but not all."""
+        return self._mean(r.recall for r in self.results)
+
+    @property
+    def mrr(self) -> float:
+        """Mean reciprocal rank: how near the top the first right answer lands."""
+        return self._mean(r.reciprocal_rank for r in self.results)
+
+    @property
+    def misses(self) -> tuple[QuestionResult, ...]:
+        """Questions where nothing relevant was retrieved - the work queue."""
+        return tuple(r for r in self.results if not r.found)
+
+    def _mean(self, values) -> float:
+        """Mean over questions, 0.0 for an empty run rather than ZeroDivisionError."""
+        total = list(values)
+        return sum(total) / len(total) if total else 0.0
