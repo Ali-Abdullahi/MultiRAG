@@ -67,3 +67,15 @@ def collection_dim(client: QdrantClient) -> int | None:
         return None
     info = client.get_collection(config.QDRANT_COLLECTION)
     return info.config.params.vectors.size
+
+
+def collection_size(client: QdrantClient) -> int:
+    """Number of indexed pages, or 0 if the collection is absent.
+
+    Exact rather than estimated: the caller is eval, which uses this to decide
+    whether a metric is meaningful, and an approximate corpus size would make
+    that decision approximate too.
+    """
+    if not client.collection_exists(config.QDRANT_COLLECTION):
+        return 0
+    return client.count(config.QDRANT_COLLECTION, exact=True).count
