@@ -93,3 +93,22 @@ class RunReport:
         """Mean over questions, 0.0 for an empty run rather than ZeroDivisionError."""
         total = list(values)
         return sum(total) / len(total) if total else 0.0
+
+
+def _score(question, hits: tuple[Hit, ...], k: int) -> QuestionResult:
+    """Score one question's hit list against its known answer pages.
+
+    Hits arrive already ranked by the index; this never reorders them. Scoring a
+    list it had sorted itself would measure the harness, not the retriever.
+    """
+    retrieved = [hit.page_id for hit in hits]
+    return QuestionResult(
+        qid=question.qid,
+        question=question.question,
+        relevant=question.relevant,
+        refs=question.refs,
+        hits=hits,
+        rank=metrics.rank_of_first_relevant(retrieved, question.relevant, k),
+        recall=metrics.recall_at_k(retrieved, question.relevant, k),
+        reciprocal_rank=metrics.reciprocal_rank(retrieved, question.relevant, k),
+    )
