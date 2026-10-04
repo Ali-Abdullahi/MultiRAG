@@ -68,3 +68,41 @@ class GoldSet:
 def goldset_path(name: str) -> Path:
     """Location of a named gold set. One JSON file per set."""
     return config.EVALSETS_DIR / f"{name}.json"
+
+
+@dataclass(frozen=True)
+class _Corpus:
+    """What is ingested, indexed by the two keys a gold set needs.
+
+    page_ids maps (source_name, 0-based page_index) -> page_id. doc_ids maps a
+    source_name to every doc_id carrying it, which is what makes ambiguity
+    detectable: identity is the sha256 of the bytes, so the same PDF under two
+    filenames collapses to one document - but two *different* PDFs under one
+    filename do not. source_name is a label, not a key.
+    """
+
+    page_ids: dict[tuple[str, int], str]
+    doc_ids: dict[str, list[str]]
+
+
+def _load_corpus() -> _Corpus:
+    """Read every ingest manifest into a lookup keyed by how people cite pages.
+
+    Staleness is not checked here. Whether the images still match RENDER_DPI is
+    the pipeline's question; this layer only needs to know which page_id a
+    citation names. Sorted for determinism, so a duplicate filename reports the
+    same pair of doc_ids on every run.
+    """
+    page_ids: dict[tuple[str, int], str] = {}
+    doc_ids: dict[str, list[str]] = {}
+
+    for path in sorted(config.MANIFESTS_DIR.glob("*.json")):
+        manifest = jsonio.read_or_none(path)
+        if manifest is None:
+            continue
+        source_name = manifest["source_name"]
+        doc_ids.setdefault(source_name, []).append(manifest["doc_id"])
+        for page in manifest["pages"]:
+            page_ids[(source_name, page["page_index"])] = page["page_id"]
+
+    return _Corpus(page_ids=page_ids, doc_ids=doc_ids)
