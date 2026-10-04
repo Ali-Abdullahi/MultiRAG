@@ -62,6 +62,7 @@ class RunReport:
     model_id: str
     model_revision: str
     collection: str
+    corpus_pages: int
     created_at: str
     results: tuple[QuestionResult, ...]
 
@@ -83,6 +84,27 @@ class RunReport:
     def mrr(self) -> float:
         """Mean reciprocal rank: how near the top the first right answer lands."""
         return self._mean(r.reciprocal_rank for r in self.results)
+
+    @property
+    def top1_rate(self) -> float:
+        """Share of questions whose very top hit is relevant.
+
+        The metric that still discriminates when the corpus is smaller than k.
+        It is also the one closest to what a user experiences: the first page is
+        the one a person sees first and the one a VLM weighs most heavily.
+        """
+        return self._mean(1.0 if r.rank == 1 else 0.0 for r in self.results)
+
+    @property
+    def saturated(self) -> bool:
+        """True when k reaches the whole corpus, so recall@k cannot fail.
+
+        With 3 indexed pages and k=5, every query returns everything and
+        hit_rate and mean_recall are 1.0 by arithmetic rather than by merit.
+        Saying so is the point: a metric that cannot fail measures nothing, and
+        a vacuous 1.000 left unlabelled will eventually be read as a pass.
+        """
+        return self.corpus_pages <= self.k
 
     @property
     def misses(self) -> tuple[QuestionResult, ...]:
@@ -147,6 +169,7 @@ def run_retrieval(
         retriever = Retriever.open()
 
     try:
+        corpus_pages = retriever.page_count
         results = []
         for question in goldset.questions:
             hits = tuple(retriever.search(question.question, limit=k))
@@ -164,6 +187,7 @@ def run_retrieval(
         model_id=contract["model_id"],
         model_revision=contract["model_revision"],
         collection=contract["collection"],
+        corpus_pages=corpus_pages,
         created_at=datetime.now(timezone.utc).isoformat(),
         results=tuple(results),
     )
