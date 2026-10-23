@@ -15,6 +15,11 @@ data/
 storage/
 .cache/
 
+# Personal source material: PDFs being ingested and gold sets written against
+# them. The repo is public; the documents and their contents stay local.
+*.pdf
+evalsets/homework.json
+
 # OS / editor
 .DS_Store
 .idea/
