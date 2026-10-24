@@ -11,10 +11,27 @@ from qdrant_client import QdrantClient, models
 from multirag import config
 
 
+class StoreLockedError(RuntimeError):
+    """Raised when another process already holds the embedded store's lock."""
+
+
 def open_client() -> QdrantClient:
-    """Open the embedded store. Caller is responsible for closing it."""
+    """Open the embedded store. Caller is responsible for closing it.
+
+    qdrant-client signals a held lock with a bare RuntimeError, so the message is
+    the only way to tell it apart. It is re-raised as a named error because this
+    is the one failure a user can fix in seconds, and they should be told how.
+    """
     config.QDRANT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    return QdrantClient(path=str(config.QDRANT_PATH))
+    try:
+        return QdrantClient(path=str(config.QDRANT_PATH))
+    except RuntimeError as error:
+        if "already accessed" not in str(error):
+            raise
+        raise StoreLockedError(
+            f"{config.QDRANT_PATH} is in use by another process - most likely the "
+            "Streamlit app. Stop it (Ctrl-C) and retry."
+        ) from error
 
 
 def _vector_params(dim: int) -> models.VectorParams:
