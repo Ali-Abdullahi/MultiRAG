@@ -88,3 +88,19 @@ def cmd_add(args) -> int:
 
     print(f"done: {len(pdfs) - failures} added, {failures} failed")
     return 1 if failures else 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(prog="python -m multirag")
+    commands = parser.add_subparsers(dest="command", required=True)
+
+    add = commands.add_parser("add", help="ingest, embed and index PDFs")
+    add.add_argument("paths", nargs="+", help="PDF files or folders to search for PDFs")
+    add.set_defaults(func=cmd_add)
+
+    args = parser.parse_args(argv)
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
