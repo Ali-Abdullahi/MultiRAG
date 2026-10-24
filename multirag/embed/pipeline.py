@@ -37,6 +37,24 @@ def _resumable_pages(document_id: str, existing: dict | None) -> dict[int, dict]
     }
 
 
+def is_embedded(document_id: str) -> bool:
+    """Whether embed_document would return without loading a model.
+
+    Lets a caller embedding a corpus pay the ~8s encoder load only when some
+    document actually needs it. Same short-circuit as embed_document, checked
+    against config rather than a loaded encoder - no torch, no network.
+    """
+    render = render_manifest_mod.read_manifest(document_id)
+    if render is None or render_manifest_mod.stale_reason(render):
+        return False
+    existing = embed_manifest.read_manifest(document_id)
+    if not existing or not existing.get("complete"):
+        return False
+    if embed_manifest.stale_reason(existing, render_manifest=render):
+        return False
+    return len(_resumable_pages(document_id, existing)) == render["page_count"]
+
+
 def embed_document(
     document_id: str,
     *,
