@@ -19,6 +19,7 @@ storage/
 # them. The repo is public; the documents and their contents stay local.
 *.pdf
 evalsets/homework.json
+evalsets/csci5521.json
 
 # OS / editor
 .DS_Store
