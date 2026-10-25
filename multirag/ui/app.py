@@ -167,7 +167,12 @@ def main() -> None:
         try:
             answer = generator.answer(question, hits)
         except Exception as error:  # backends fail in provider-specific ways
-            st.error(f"{type(error).__name__}: {error}")
+            # Backends already keep the key out of their own errors, but a
+            # provider SDK's exception text is not ours to vouch for.
+            message = f"{type(error).__name__}: {error}"
+            if settings.get("api_key"):
+                message = message.replace(settings["api_key"], "[redacted]")
+            st.error(message)
             return
 
     st.subheader("Answer")
