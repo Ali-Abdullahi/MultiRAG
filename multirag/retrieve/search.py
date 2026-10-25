@@ -28,6 +28,21 @@ class Hit:
     page_index: int
     page_id: str
     image_path: Path
+    # How many vectors the query encoded to. Defaulted so a Hit built outside
+    # search() (tests, fixtures) stays valid; match is then unknown.
+    query_tokens: int = 0
+
+    @property
+    def match(self) -> float | None:
+        """Score per query token: the mean best-patch similarity.
+
+        The raw MaxSim score is a sum over query tokens, so it grows with question
+        length and cannot be compared across questions. Dividing by the token
+        count gives a number that can - measured on the CSCI 5521 corpus, it
+        separated answerable from unanswerable questions where the raw score
+        overlapped (raw 10.9-20.5 vs 8.1-11.8; per-token 0.53-0.78 vs 0.42-0.55).
+        """
+        return self.score / self.query_tokens if self.query_tokens else None
 
     @property
     def citation(self) -> str:
@@ -136,6 +151,7 @@ class Retriever:
                 page_index=point.payload["page_index"],
                 page_id=point.payload["page_id"],
                 image_path=config.DATA_DIR / point.payload["image"],
+                query_tokens=int(vectors.shape[0]),
             )
             for point in response.points
         ]
