@@ -34,12 +34,6 @@ def get_retriever() -> Retriever:
     return Retriever.open()
 
 
-@st.cache_resource(show_spinner=False)
-def get_generator(name: str):
-    """Cached per backend name, so switching backends does not rebuild both."""
-    return load_generator(name)
-
-
 def sidebar() -> tuple[str, int]:
     """Backend and top-k controls. Returns the current selection."""
     with st.sidebar:
@@ -118,8 +112,11 @@ def main() -> None:
     if not st.button(f"Generate answer with `{backend}`", type="primary"):
         return
 
+    # Built per click, never cached: st.cache_resource is shared by every session
+    # connected to this server, so a generator holding one user's key must not
+    # live there. Construction is cheap; the expensive part is the API call.
     try:
-        generator = get_generator(backend)
+        generator = load_generator(backend)
     except UnknownBackendError as error:
         st.error(str(error))
         return
