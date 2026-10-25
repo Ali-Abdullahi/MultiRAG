@@ -69,3 +69,38 @@ python -m multirag eval <name>
 
 > Embedded Qdrant allows **one process at a time**. Stop the Streamlit app before
 > running `add` or `eval`; the CLI says so if you forget.
+
+## Answer backends
+
+Pick one in the app's sidebar. Bring your own key - nothing is bundled.
+
+| Backend | Use for | Needs |
+|---|---|---|
+| `echo` | Checking retrieval; no model is called | nothing |
+| `claude` | Anthropic's Claude | `pip install anthropic` and an Anthropic API key |
+| `openai-compatible` | OpenAI, Gemini, Groq, Mistral, OpenRouter, a local Ollama, ... | base URL + model id + key |
+
+The model must accept images. Example settings for Gemini (Google AI Studio offers a
+free tier):
+
+| Field | Value |
+|---|---|
+| Base URL | `https://generativelanguage.googleapis.com/v1beta/openai/` |
+| Model | the bare id, e.g. `gemini-…-flash-lite` - not `models/gemini-…` |
+| API key | from Google AI Studio |
+
+Free tiers can be congested: if requests time out or report "provider busy", try a
+`lite` variant or raise the timeout in the sidebar.
+
+**Keys stay with you.** A key typed into the sidebar is held only in that browser
+session's memory - never written to disk, never logged, never shared across sessions,
+and redacted from any error shown. Alternatively set `ANTHROPIC_API_KEY` or
+`OPENAI_API_KEY` in your environment (see `.env.example`); `.env` is gitignored.
+The app listens on `localhost` only, so it is not reachable from your network.
+
+A chat subscription (Claude Pro, Google AI Pro) does not include API usage; API
+calls are billed separately by each provider.
+
+To add a provider that is not OpenAI-compatible: write one class with an
+`answer(question, hits)` method (see `multirag/generate/base.py`) and register it in
+`multirag/generate/factory.py`. Nothing else needs to know about it.
