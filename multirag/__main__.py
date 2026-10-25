@@ -93,6 +93,10 @@ def cmd_add(args) -> int:
 def _print_result(result) -> None:
     """One line per question as it lands. A non-first rank shows what beat it,
     since 'what came back instead' is the first question any miss raises."""
+    if not result.answerable:
+        match = f"{result.top_match:.3f}" if result.top_match is not None else "?"
+        print(f"  n/a  {result.qid}  (unanswerable; top match {match})")
+        return
     if result.rank == 1:
         print(f"  #1   {result.qid}")
         return
@@ -131,6 +135,13 @@ def cmd_eval(args) -> int:
     print(f"  MRR        {report.mrr:.3f}")
     if report.saturated:
         print(f"  WARNING: corpus ({report.corpus_pages}) <= k ({report.k}); hit and recall cannot fail")
+    check = report.weak_match_check()
+    if check["unanswerable"]:
+        print(
+            f"  weak-match warning at {check['threshold']}: fired on "
+            f"{check['unanswerable'] - check['unanswerable_missed']}/{check['unanswerable']} unanswerable, "
+            f"{check['answerable_warned']}/{check['answerable']} answerable (should be 0)"
+        )
     if not args.no_save:
         from multirag.eval import store
 

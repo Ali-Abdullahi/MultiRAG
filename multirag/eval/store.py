@@ -40,12 +40,15 @@ def report_record(report: RunReport) -> dict:
         "created_at": report.created_at,
         "saturated": report.saturated,
         "metrics": {name: getattr(report, name) for name in METRICS},
+        "weak_match": report.weak_match_check(),
         "questions": [
             {
                 "qid": r.qid,
                 "rank": r.rank,
                 "recall": r.recall,
                 "reciprocal_rank": r.reciprocal_rank,
+                "answerable": r.answerable,
+                "top_match": r.top_match,
                 "expected": [ref.citation for ref in r.refs],
                 "retrieved": [hit.citation for hit in r.hits],
             }
