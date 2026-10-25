@@ -148,3 +148,40 @@ explained the concept.
 
 Gold sets built from private documents quote them; keep those out of version
 control (see `.gitignore`).
+
+## Design notes
+
+- **Identity is content, not filename.** A document's id is a prefix of its file's
+  sha256, so the same PDF under two names is one document. Each page's Qdrant id is a
+  deterministic UUID derived from that, so re-indexing overwrites instead of
+  duplicating.
+- **Every stage records what it was built from, and checks it.** Images record the
+  render settings; vectors record the encoder and a fingerprint of those settings; the
+  collection records which encoder it belongs to. Changing the DPI or the model is
+  detected and reported rather than silently mixing incompatible data - mixing two
+  encoders' vectors raises no error, it just ranks nonsense.
+- **Writes are atomic** (temp file, fsync, rename), so a crash never leaves a
+  half-written manifest or vector file behind.
+- **Search is exact.** HNSW is disabled: at this scale, brute-force MaxSim over every
+  page is cheap and never misses. Exact still means semantic - vectors are compared,
+  not words.
+- **Pages are rendered as PNG**, not JPEG: compression artifacts hurt small text and
+  thin table lines most, which is what this pipeline exists to read.
+
+## Hardware
+
+The default encoder is `vidore/colSmol-256M`, chosen to run on an 8 GB Apple M1 on the
+CPU. Larger ColPali-family models (ColPali, ColQwen) need roughly 6 GB in half
+precision; set `EMBED_MODEL_ID` in `multirag/config.py` on bigger hardware. Changing
+the model means re-embedding and re-indexing - the pipeline refuses to mix them.
+
+On torch 2.13, Apple's MPS backend hung or crashed loading this model, so the encoder
+uses the CPU unless `EMBED_DEVICE` is set explicitly.
+
+## Limitations
+
+- Retrieval always returns the top k pages, even for a question the documents cannot
+  answer; the vision model is instructed to say so rather than guess.
+- One process can open the index at a time (embedded Qdrant takes a file lock).
+- The `claude` backend has not yet been exercised against the live API; the
+  `openai-compatible` backend has (via Gemini).
