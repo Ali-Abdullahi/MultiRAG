@@ -60,7 +60,10 @@ def backend_settings(backend: str) -> dict:
                 "OpenRouter, or a local server such as Ollama (http://localhost:11434/v1).",
             ),
             "model": st.text_input(
-                "Model", placeholder="a vision-capable model", help="Must accept images."
+                "Model",
+                placeholder="a vision-capable model",
+                help="Must accept images. Use the bare model id - for Gemini, "
+                "'gemini-…-flash', not 'models/gemini-…-flash'.",
             ),
         }
         env_var = "OPENAI_API_KEY"
@@ -73,6 +76,13 @@ def backend_settings(backend: str) -> dict:
     )
     if not settings["api_key"] and os.environ.get(env_var):
         st.caption(f"Using `{env_var}` from your environment.")
+
+    # Exposed because the right value depends on the provider, not on MultiRAG:
+    # a congested free tier was measured taking 157s to return a single word.
+    settings["timeout"] = st.number_input(
+        "Timeout (seconds)", min_value=10, max_value=600, value=120, step=30,
+        help="How long to wait for the provider before giving up. Raise it for slow free tiers.",
+    )
     return settings
 
 
