@@ -138,6 +138,55 @@ def cmd_eval(args) -> int:
     return 0
 
 
+def cmd_runs(args) -> int:
+    """List saved runs for a gold set, numbered for `compare`."""
+    from multirag.eval import store
+
+    paths = store.list_runs(args.name)
+    if not paths:
+        print(f"no saved runs for {args.name}; run `python -m multirag eval {args.name}`")
+        return 1
+    for n, path in enumerate(paths, start=1):
+        run = store.load_run(path)
+        m = run["metrics"]
+        print(
+            f"  {n:>2}. {path.stem}  top-1 {m['top1_rate']:.3f}  hit@{run['k']} {m['hit_rate']:.3f}"
+            f"  MRR {m['mrr']:.3f}  · {run['model_id']} · {run['corpus_pages']} pages"
+        )
+    return 0
+
+
+def cmd_compare(args) -> int:
+    """Compare two saved runs - by default the last two."""
+    from multirag.eval import store
+
+    paths = store.list_runs(args.name)
+    if len(paths) < 2:
+        print(f"need at least 2 saved runs of {args.name} to compare (have {len(paths)})")
+        return 1
+    try:
+        old_path, new_path = paths[args.old - 1], paths[args.new - 1]
+    except IndexError:
+        print(f"run numbers must be 1-{len(paths)}; see `python -m multirag runs {args.name}`")
+        return 1
+
+    diff = store.compare(store.load_run(old_path), store.load_run(new_path))
+    print(f"{old_path.stem}  ->  {new_path.stem}")
+    for line in diff["variables"]:
+        print(f"  changed   {line}")
+    for line in diff["invalidating"]:
+        print(f"  WARNING   {line} - deltas below do not measure retrieval alone")
+    print()
+    for name, (before, after) in diff["metrics"].items():
+        print(f"  {name:<12} {before:.3f} -> {after:.3f}  ({after - before:+.3f})")
+    if diff["rank_changes"]:
+        print("\n  rank changes:")
+        for qid, before, after in diff["rank_changes"]:
+            show = lambda r: f"#{r}" if r else "miss"
+            print(f"    {qid:<28} {show(before):>4} -> {show(after)}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m multirag")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -151,6 +200,16 @@ def main(argv: list[str] | None = None) -> int:
     ev.add_argument("-k", type=int, default=None, help="cutoff (default: config.EVAL_TOP_K)")
     ev.add_argument("--no-save", action="store_true", help="print only; do not save the run")
     ev.set_defaults(func=cmd_eval)
+
+    runs = commands.add_parser("runs", help="list saved eval runs for a gold set")
+    runs.add_argument("name")
+    runs.set_defaults(func=cmd_runs)
+
+    cmp = commands.add_parser("compare", help="compare two saved eval runs")
+    cmp.add_argument("name")
+    cmp.add_argument("old", nargs="?", type=int, default=-1, help="run number from `runs` (default: second-latest)")
+    cmp.add_argument("new", nargs="?", type=int, default=0, help="run number from `runs` (default: latest)")
+    cmp.set_defaults(func=cmd_compare)
 
     args = parser.parse_args(argv)
     return args.func(args)
