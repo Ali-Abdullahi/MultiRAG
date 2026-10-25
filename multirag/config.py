@@ -96,7 +96,7 @@ VLM_MAX_IMAGE_EDGE = 1568
 # Backend name and model, both overridable by environment so a clone can point
 # at its own provider without editing code. No credentials live in config.
 GENERATOR_BACKEND = os.environ.get("MULTIRAG_GENERATOR", "claude")
-GENERATOR_MODEL = os.environ.get("MULTIRAG_GENERATOR_MODEL", "claude-opus-5")
+GENERATOR_MODEL = os.environ.get("MULTIRAG_GENERATOR_MODEL", "claude-opus-5-5")
 
 # --- Eval (Phase 7) --------------------------------------------------------
 
