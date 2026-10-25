@@ -157,6 +157,15 @@ def main() -> None:
         return
 
     st.subheader(f"{len(hits)} pages retrieved")
+    best = hits[0].match
+    if best is not None and best < config.WEAK_MATCH_THRESHOLD:
+        # Shown before the Generate button so it can inform the decision to pay
+        # for a model call, not explain one after the fact.
+        st.warning(
+            f"Weak match ({best:.2f} < {config.WEAK_MATCH_THRESHOLD}): your documents may "
+            "not cover this question. These are the closest pages, not necessarily "
+            "relevant ones."
+        )
     show_hits(hits)
 
     # Generation is behind its own button on purpose: retrieval is free and

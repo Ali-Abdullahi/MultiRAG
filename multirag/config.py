@@ -85,6 +85,15 @@ QDRANT_UPSERT_BATCH = 8
 # every extra page is real tokens and real latency in Phase 5.
 RETRIEVE_TOP_K = 5
 
+# Below this per-token match (Hit.match) the best page probably does not answer
+# the question, and the UI says so. Retrieval itself never refuses - it always
+# returns its top k - so this is the only signal that nothing fits.
+# Calibrated 2026-10-25 for colSmol-256M on a 208-page corpus: 0.53 warned on
+# 0/35 answerable questions and 9/10 unanswerable ones. The margin is thin and the
+# value is encoder-specific: re-check with `python -m multirag eval` after any
+# encoder change, which reports how well it still separates the two.
+WEAK_MATCH_THRESHOLD = 0.53
+
 # --- Generation (Phase 5) --------------------------------------------------
 
 # Long edge, in pixels, for images sent to a vision model. Pages are rendered at
