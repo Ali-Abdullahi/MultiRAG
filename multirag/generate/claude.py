@@ -32,19 +32,25 @@ def _image_block(page: PageImage) -> dict:
 class ClaudeGenerator:
     """Sends page images to a Claude vision model and returns a cited answer."""
 
-    def __init__(self, model: str | None = None):
+    def __init__(self, model: str | None = None, api_key: str | None = None):
         self.model = model or config.GENERATOR_MODEL
         self.name = f"claude:{self.model}"
+        self._api_key = (api_key or "").strip() or None
         self._client = None
+
+    def __repr__(self) -> str:
+        # Keeps a session-supplied key out of logs and rendered objects.
+        return f"ClaudeGenerator(model={self.model!r})"
 
     def _get_client(self):
         """Build the SDK client on first use, not at import time."""
         if self._client is None:
             import anthropic
 
-            # No api_key argument on purpose: the SDK resolves the caller's own
-            # credentials from their environment.
-            self._client = anthropic.Anthropic()
+            # A key typed into the UI is passed through; otherwise api_key=None
+            # lets the SDK resolve the caller's own credentials from their
+            # environment. Nothing is ever read from or written to disk here.
+            self._client = anthropic.Anthropic(api_key=self._api_key)
         return self._client
 
     def answer(self, question: str, hits: list[Hit]) -> Answer:

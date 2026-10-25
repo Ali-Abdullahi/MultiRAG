@@ -8,6 +8,11 @@ from multirag import config
 from multirag.generate.base import Generator
 
 
+# The single list of registered names, so the UI's picker and the error message
+# below cannot disagree with what load_generator actually accepts.
+BACKENDS = ("echo", "claude", "openai-compatible")
+
+
 class UnknownBackendError(ValueError):
     """Raised when the configured backend name is not registered."""
 
@@ -30,7 +35,12 @@ def load_generator(name: str | None = None, **kwargs) -> Generator:
 
         return ClaudeGenerator(**kwargs)
 
+    if name == "openai-compatible":
+        from multirag.generate.openai_compat import OpenAICompatGenerator
+
+        return OpenAICompatGenerator(**kwargs)
+
     raise UnknownBackendError(
-        f"unknown generator backend {name!r}; known: 'claude', 'echo'. "
+        f"unknown generator backend {name!r}; known: {', '.join(map(repr, BACKENDS))}. "
         "Set MULTIRAG_GENERATOR, or register your own in generate/factory.py"
     )
