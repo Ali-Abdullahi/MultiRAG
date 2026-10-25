@@ -58,6 +58,7 @@ class RunReport:
     """
 
     goldset_name: str
+    goldset_fingerprint: str
     k: int
     model_id: str
     model_revision: str
@@ -183,6 +184,7 @@ def run_retrieval(
 
     return RunReport(
         goldset_name=goldset.name,
+        goldset_fingerprint=goldset.fingerprint,
         k=k,
         model_id=contract["model_id"],
         model_revision=contract["model_revision"],
