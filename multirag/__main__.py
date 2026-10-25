@@ -90,6 +90,50 @@ def cmd_add(args) -> int:
     return 1 if failures else 0
 
 
+def _print_result(result) -> None:
+    """One line per question as it lands. A non-first rank shows what beat it,
+    since 'what came back instead' is the first question any miss raises."""
+    if result.rank == 1:
+        print(f"  #1   {result.qid}")
+        return
+    rank = f"#{result.rank}" if result.found else "miss"
+    top = result.hits[0].citation if result.hits else "nothing"
+    print(f"  {rank:<4} {result.qid}  (top: {top}; expected: {result.expected})")
+
+
+def cmd_eval(args) -> int:
+    """Score a gold set against the index. Returns a process exit code."""
+    from multirag.eval import GoldSetError, load_goldset, run_retrieval
+    from multirag.index.client import StoreLockedError
+
+    # Load first: a typo in the gold set should cost milliseconds, not an 8s
+    # encoder load followed by a failure.
+    try:
+        goldset = load_goldset(args.name)
+    except GoldSetError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
+
+    print(f"{goldset.name}: {len(goldset)} questions, loading encoder...", flush=True)
+    try:
+        report = run_retrieval(goldset, k=args.k, on_question=_print_result)
+    except StoreLockedError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
+
+    print(
+        f"\ncorpus {report.corpus_pages} pages · k={report.k} · "
+        f"{report.model_id}@{report.model_revision[:8]}"
+    )
+    print(f"  top-1      {report.top1_rate:.3f}")
+    print(f"  hit@{report.k}      {report.hit_rate:.3f}")
+    print(f"  recall@{report.k}   {report.mean_recall:.3f}")
+    print(f"  MRR        {report.mrr:.3f}")
+    if report.saturated:
+        print(f"  WARNING: corpus ({report.corpus_pages}) <= k ({report.k}); hit and recall cannot fail")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m multirag")
     commands = parser.add_subparsers(dest="command", required=True)
