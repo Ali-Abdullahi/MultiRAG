@@ -60,25 +60,34 @@ class Retriever:
         if contract is None:
             raise RetrievalMismatchError("nothing indexed yet; run index_document first")
 
-        if encoder is None:
-            from multirag.embed.encoder import PageEncoder
+        # Store first, encoder second: a held lock is the common failure and
+        # costs milliseconds to detect, so it must not wait behind an 8s load.
+        client = qc.open_client()
+        try:
+            if encoder is None:
+                from multirag.embed.encoder import PageEncoder
 
-            encoder = PageEncoder.load()
+                encoder = PageEncoder.load()
 
-        info = encoder.info
-        for key, want in (
-            ("model_id", info.model_id),
-            ("model_revision", info.revision),
-            ("dim", info.dim),
-        ):
-            got = contract.get(key)
-            if got != want:
-                raise RetrievalMismatchError(
-                    f"index was built with {key} {got!r}, querying with {want!r}: "
-                    "re-index, or point at the collection that matches"
-                )
+            info = encoder.info
+            for key, want in (
+                ("model_id", info.model_id),
+                ("model_revision", info.revision),
+                ("dim", info.dim),
+            ):
+                got = contract.get(key)
+                if got != want:
+                    raise RetrievalMismatchError(
+                        f"index was built with {key} {got!r}, querying with {want!r}: "
+                        "re-index, or point at the collection that matches"
+                    )
+        except BaseException:
+            # Opened before anything that can fail, so release it on any failure:
+            # a leaked client keeps the lock until this process exits.
+            client.close()
+            raise
 
-        return cls(encoder, qc.open_client())
+        return cls(encoder, client)
 
     def close(self) -> None:
         """Release the Qdrant file lock."""
