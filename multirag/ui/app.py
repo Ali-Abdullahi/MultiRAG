@@ -14,11 +14,13 @@ is a property of running the database in-process, not a bug to work around here.
 """
 
 import os
+import time
 
 import streamlit as st
 
 from multirag import config
 from multirag.generate import UnknownBackendError, load_generator
+from multirag.generate.base import redact
 from multirag.generate.factory import BACKENDS
 from multirag.index import manifest as index_manifest
 from multirag.retrieve import RetrievalMismatchError, Retriever
@@ -173,21 +175,27 @@ def main() -> None:
         st.error(str(error))
         return
 
+    started = time.perf_counter()
     with st.spinner(f"Asking {backend}..."):
         try:
             answer = generator.answer(question, hits)
         except Exception as error:  # backends fail in provider-specific ways
             # Backends already keep the key out of their own errors, but a
             # provider SDK's exception text is not ours to vouch for.
-            message = f"{type(error).__name__}: {error}"
-            if settings.get("api_key"):
-                message = message.replace(settings["api_key"], "[redacted]")
-            st.error(message)
+            st.error(redact(f"{type(error).__name__}: {error}", settings.get("api_key")))
             return
+
+    elapsed = time.perf_counter() - started
 
     st.subheader("Answer")
     st.markdown(answer.text)
-    st.caption("Sources: " + " · ".join(answer.sources))
+    # "Shown to the model", not "Sources": this lists every page that was sent,
+    # including ones the answer never used - or, for a refusal, none of them.
+    # Calling them sources would vouch for citations the model did not make.
+    st.caption(
+        "Pages shown to the model: " + " · ".join(answer.sources)
+        + f"  \nAnswered by `{answer.model}` in {elapsed:.1f}s"
+    )
 
 
 main()
