@@ -16,13 +16,18 @@ import base64
 import os
 
 from multirag.generate import prompt as prompt_mod
-from multirag.generate.base import PageImage
+from multirag.generate.base import Answer, MissingCredentialsError, PageImage
+from multirag.retrieve import Hit
 
 DEFAULT_BASE_URL = "https://api.openai.com/v1"
 
 # Generous: several page images plus a model that may think before answering.
 TIMEOUT_SECONDS = 120
 MAX_TOKENS = 4096
+
+
+class ProviderError(RuntimeError):
+    """The provider refused or failed the request. Message is safe to display."""
 
 
 def _image_part(page: PageImage) -> dict:
@@ -58,3 +63,55 @@ class OpenAICompatGenerator:
                 {"role": "user", "content": content},
             ],
         }
+
+    def _redact(self, text: str) -> str:
+        """Strip the key from provider text before it can be displayed.
+
+        Some providers echo part or all of a rejected key in their error body.
+        Errors are rendered in the UI, so this runs on everything that is shown.
+        """
+        if self._api_key:
+            text = text.replace(self._api_key, "[redacted]")
+        return text[:300]
+
+    def answer(self, question: str, hits: list[Hit]) -> Answer:
+        """Answer from the given pages, or raise an error that is safe to show."""
+        import httpx
+
+        if not self.model:
+            raise ValueError("no model set; enter a vision-capable model name for this provider")
+        if not self._api_key and "localhost" not in self.base_url and "127.0.0.1" not in self.base_url:
+            # Local servers such as Ollama need no key; hosted ones always do.
+            raise MissingCredentialsError("no API key; enter one in the sidebar or set OPENAI_API_KEY")
+
+        pages = prompt_mod.load_page_images(hits)
+        headers = {"Authorization": f"Bearer {self._api_key}"} if self._api_key else {}
+
+        try:
+            response = httpx.post(
+                f"{self.base_url}/chat/completions",
+                json=self._payload(question, pages),
+                headers=headers,
+                timeout=TIMEOUT_SECONDS,
+            )
+        except httpx.TimeoutException:
+            raise ProviderError(f"{self.base_url} did not answer within {TIMEOUT_SECONDS}s") from None
+        except httpx.HTTPError as error:
+            # `from None`: the chained exception holds the request, headers included.
+            raise ProviderError(f"could not reach {self.base_url}: {type(error).__name__}") from None
+
+        if response.status_code in (401, 403):
+            raise MissingCredentialsError("the provider rejected this API key")
+        if response.status_code == 404:
+            raise ProviderError(f"not found - check the base URL and that model {self.model!r} exists")
+        if response.status_code >= 400:
+            raise ProviderError(
+                f"provider returned {response.status_code} (a text-only model fails on page "
+                f"images): {self._redact(response.text)}"
+            )
+
+        message = response.json()["choices"][0]["message"]["content"]
+        # Most providers return a string; some return a list of content parts.
+        if isinstance(message, list):
+            message = "\n".join(part.get("text", "") for part in message if isinstance(part, dict))
+        return Answer(text=message or "", model=self.model, hits=tuple(hits))
