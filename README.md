@@ -80,14 +80,16 @@ Pick one in the app's sidebar. Bring your own key - nothing is bundled.
 | `claude` | Anthropic's Claude | `pip install anthropic` and an Anthropic API key |
 | `openai-compatible` | OpenAI, Gemini, Groq, Mistral, OpenRouter, a local Ollama, ... | base URL + model id + key |
 
-The model must accept images. Example settings for Gemini (Google AI Studio offers a
-free tier):
+The model must accept images. Example `openai-compatible` settings:
 
-| Field | Value |
-|---|---|
-| Base URL | `https://generativelanguage.googleapis.com/v1beta/openai/` |
-| Model | the bare id, e.g. `gemini-…-flash-lite` - not `models/gemini-…` |
-| API key | from Google AI Studio |
+| Field | Gemini (Google AI Studio has a free tier) | Claude, without installing `anthropic` |
+|---|---|---|
+| Base URL | `https://generativelanguage.googleapis.com/v1beta/openai/` | `https://api.anthropic.com/v1/` |
+| Model | the bare id, e.g. `gemini-…-flash-lite` - not `models/gemini-…` | e.g. `claude-opus-5-5` |
+| API key | from Google AI Studio | from console.anthropic.com |
+
+Anthropic describes its OpenAI-compatible endpoint mainly for testing and comparison;
+the `claude` backend uses Anthropic's own SDK and supports Claude's full feature set.
 
 Free tiers can be congested: if requests time out or report "provider busy", try a
 `lite` variant or raise the timeout in the sidebar.
