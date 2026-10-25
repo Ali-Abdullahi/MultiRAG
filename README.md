@@ -167,7 +167,8 @@ size is flagged as a warning, because each moves the numbers for reasons that ha
 nothing to do with retrieval quality.
 
 Gold sets and saved runs built from private documents quote them; keep them out of
-version control (`data/` is already ignored).
+version control (`data/` is already ignored, and so is every `evalsets/*.json` except
+files named `*.public.json`).
 
 ## Tests
 
