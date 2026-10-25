@@ -114,7 +114,7 @@ def cmd_eval(args) -> int:
         print(f"error: {error}", file=sys.stderr)
         return 1
 
-    print(f"{goldset.name}: {len(goldset)} questions, loading encoder...", flush=True)
+    print(f"{goldset.name}: {len(goldset)} questions, opening index and encoder...", flush=True)
     try:
         report = run_retrieval(goldset, k=args.k, on_question=_print_result)
     except StoreLockedError as error:
@@ -141,6 +141,11 @@ def main(argv: list[str] | None = None) -> int:
     add = commands.add_parser("add", help="ingest, embed and index PDFs")
     add.add_argument("paths", nargs="+", help="PDF files or folders to search for PDFs")
     add.set_defaults(func=cmd_add)
+
+    ev = commands.add_parser("eval", help="score a gold set from evalsets/ against the index")
+    ev.add_argument("name", help="gold set name, e.g. csci5521 for evalsets/csci5521.json")
+    ev.add_argument("-k", type=int, default=None, help="cutoff (default: config.EVAL_TOP_K)")
+    ev.set_defaults(func=cmd_eval)
 
     args = parser.parse_args(argv)
     return args.func(args)
