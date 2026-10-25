@@ -18,6 +18,10 @@ qdrant-client==1.19.0
 # for the bundled Claude backend. The 'echo' backend needs nothing, and other
 # providers can be registered in generate/factory.py without adding deps here.
 anthropic>=0.40
+# The openai-compatible backend speaks plain HTTP. httpx already arrives with
+# qdrant-client, but importing a transitive dependency is a break waiting for
+# someone else's release - so it is pinned here, at the version installed.
+httpx==0.28.1
 
 # Phase 6 - UI.
 streamlit==1.63.0
