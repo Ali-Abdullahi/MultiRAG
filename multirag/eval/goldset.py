@@ -53,6 +53,10 @@ class GoldQuestion:
     question: str
     relevant: frozenset[str]
     refs: tuple[PageRef, ...]
+    # False for a question the corpus deliberately cannot answer. Such questions
+    # have no right page, so they are kept out of the ranking metrics and used
+    # instead to check that the weak-match warning fires.
+    answerable: bool = True
 
 
 @dataclass(frozen=True)
@@ -163,10 +167,15 @@ def _question(record: dict, corpus: _Corpus, seen: set[str]) -> GoldQuestion:
         raise GoldSetError(f"{qid}: question text is empty")
 
     relevant = record.get("relevant") or []
+    if record.get("answerable", True) is False:
+        if relevant:
+            raise GoldSetError(f"{qid}: marked unanswerable but lists relevant pages")
+        return GoldQuestion(qid=qid, question=question, relevant=frozenset(), refs=(), answerable=False)
     if not relevant:
         raise GoldSetError(
             f"{qid}: no relevant pages listed. A question with no answer page "
-            "scores zero for every retriever and measures nothing."
+            "scores zero for every retriever and measures nothing - if the corpus "
+            "deliberately cannot answer it, mark it \"answerable\": false."
         )
 
     refs = tuple(
