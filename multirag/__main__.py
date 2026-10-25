@@ -207,7 +207,7 @@ def main(argv: list[str] | None = None) -> int:
     add.set_defaults(func=cmd_add)
 
     ev = commands.add_parser("eval", help="score a gold set from evalsets/ against the index")
-    ev.add_argument("name", help="gold set name, e.g. csci5521 for evalsets/csci5521.json")
+    ev.add_argument("name", help="gold set name, e.g. mydocs for evalsets/mydocs.json")
     ev.add_argument("-k", type=int, default=None, help="cutoff (default: config.EVAL_TOP_K)")
     ev.add_argument("--no-save", action="store_true", help="print only; do not save the run")
     ev.set_defaults(func=cmd_eval)
