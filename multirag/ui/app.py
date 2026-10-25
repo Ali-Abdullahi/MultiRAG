@@ -117,7 +117,7 @@ def show_hits(hits) -> None:
     """
     for column, hit in zip(st.columns(len(hits)), hits):
         with column:
-            st.image(str(hit.image_path), use_container_width=True)
+            st.image(str(hit.image_path), width="stretch")
             st.caption(f"**{hit.citation}** · score {hit.score:.2f}")
 
 
