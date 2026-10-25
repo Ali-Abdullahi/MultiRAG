@@ -100,8 +100,18 @@ class OpenAICompatGenerator:
             # `from None`: the chained exception holds the request, headers included.
             raise ProviderError(f"could not reach {self.base_url}: {type(error).__name__}") from None
 
-        if response.status_code in (401, 403):
+        # Gemini reports a bad key as 400 rather than 401, so the body is the only
+        # signal. Checked before the generic 400 so the user is told to fix the key.
+        bad_key = response.status_code == 400 and "api key" in response.text.lower()
+        if response.status_code in (401, 403) or bad_key:
             raise MissingCredentialsError("the provider rejected this API key")
+        if response.status_code in (429, 503):
+            # Measured on Gemini's free tier: 503 "high demand", and one-word
+            # replies taking 157s. The provider is the bottleneck, not this app.
+            raise ProviderError(
+                f"provider busy ({response.status_code}) - try again shortly, or pick a "
+                "less loaded model (e.g. a 'lite' variant)"
+            )
         if response.status_code == 404:
             raise ProviderError(f"not found - check the base URL and that model {self.model!r} exists")
         if response.status_code >= 400:
