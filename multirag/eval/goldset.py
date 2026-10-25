@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from multirag import config, jsonio
+from multirag.ingest import ids
 
 # Bump when the fixture layout changes incompatibly, so an old gold set is
 # reported rather than half-read.
@@ -60,6 +61,10 @@ class GoldSet:
 
     name: str
     questions: tuple[GoldQuestion, ...]
+    # sha256 prefix of the fixture's bytes. Two runs are comparable only if they
+    # asked the same questions; editing one question changes this, so a saved
+    # run can tell "the retriever changed" apart from "the test changed".
+    fingerprint: str = ""
 
     def __len__(self) -> int:
         return len(self.questions)
@@ -203,4 +208,5 @@ def load_goldset(name: str) -> GoldSet:
     return GoldSet(
         name=name,
         questions=tuple(_question(record, corpus, seen) for record in records),
+        fingerprint=ids.sha256_file(path)[:16],
     )
