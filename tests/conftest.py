@@ -43,3 +43,41 @@ def make_pdf(tmp_path):
         return path
 
     return build
+
+
+def fake_info(model_id="test/encoder", revision="rev1", dim=128):
+    from multirag.embed.identity import EncoderInfo
+
+    return EncoderInfo(model_id=model_id, revision=revision, dim=dim, device="cpu", dtype="float32")
+
+
+def unit_rows(rows, dim=128, seed=0):
+    """Random L2-normalized rows - the shape and norm real page vectors have."""
+    import numpy as np
+
+    matrix = np.random.default_rng(seed).normal(size=(rows, dim)).astype(np.float32)
+    return matrix / np.linalg.norm(matrix, axis=1, keepdims=True)
+
+
+@pytest.fixture
+def fake_embed():
+    """Embed an ingested document without a model: real storage code, fake vectors.
+
+    Exercises everything downstream of the encoder - manifests, staleness,
+    indexing - in milliseconds and without torch.
+    """
+    from multirag.embed import manifest as embed_manifest
+    from multirag.embed import store
+
+    def embed(render, info=None, patches=20, pages=None, complete=True):
+        info = info or fake_info()
+        records = []
+        for page in render["pages"][:pages]:
+            index = page["page_index"]
+            store.save_vectors(render["doc_id"], index, unit_rows(patches, info.dim, seed=index))
+            records.append(embed_manifest.page_record(index, page["page_id"], patches, render["doc_id"]))
+        manifest = embed_manifest.build_manifest(render, info, records, complete=complete)
+        embed_manifest.write_manifest(manifest)
+        return manifest
+
+    return embed
