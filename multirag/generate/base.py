@@ -15,6 +15,11 @@ from typing import Protocol, runtime_checkable
 from multirag.retrieve import Hit
 
 
+class MissingCredentialsError(RuntimeError):
+    """Raised when a backend has no usable credentials. Shared by every backend
+    so the UI can catch one type, whichever provider is selected."""
+
+
 @dataclass(frozen=True)
 class PageImage:
     """One retrieved page, loaded and ready to send to a vision model."""

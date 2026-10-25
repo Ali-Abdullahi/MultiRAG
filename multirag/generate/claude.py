@@ -10,15 +10,11 @@ import base64
 
 from multirag import config
 from multirag.generate import prompt as prompt_mod
-from multirag.generate.base import Answer, PageImage
+from multirag.generate.base import Answer, MissingCredentialsError, PageImage
 from multirag.retrieve import Hit
 
 # Non-streaming, so keep this under the SDK's HTTP timeout.
 MAX_TOKENS = 16000
-
-
-class MissingCredentialsError(RuntimeError):
-    """Raised when no usable credentials are configured for this backend."""
 
 
 def _image_block(page: PageImage) -> dict:
