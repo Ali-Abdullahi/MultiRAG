@@ -131,6 +131,10 @@ def cmd_eval(args) -> int:
     print(f"  MRR        {report.mrr:.3f}")
     if report.saturated:
         print(f"  WARNING: corpus ({report.corpus_pages}) <= k ({report.k}); hit and recall cannot fail")
+    if not args.no_save:
+        from multirag.eval import store
+
+        print(f"\nsaved {store.save_run(report)}")
     return 0
 
 
@@ -145,6 +149,7 @@ def main(argv: list[str] | None = None) -> int:
     ev = commands.add_parser("eval", help="score a gold set from evalsets/ against the index")
     ev.add_argument("name", help="gold set name, e.g. csci5521 for evalsets/csci5521.json")
     ev.add_argument("-k", type=int, default=None, help="cutoff (default: config.EVAL_TOP_K)")
+    ev.add_argument("--no-save", action="store_true", help="print only; do not save the run")
     ev.set_defaults(func=cmd_eval)
 
     args = parser.parse_args(argv)
