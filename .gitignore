@@ -17,9 +17,11 @@ storage/
 
 # Personal source material: PDFs being ingested and gold sets written against
 # them. The repo is public; the documents and their contents stay local.
+# Gold sets are private by default - a pattern, so a new one never has its name
+# (let alone its questions) written here. Name one *.public.json to share it.
 *.pdf
-evalsets/homework.json
-evalsets/csci5521.json
+evalsets/*.json
+!evalsets/*.public.json
 
 # OS / editor
 .DS_Store
