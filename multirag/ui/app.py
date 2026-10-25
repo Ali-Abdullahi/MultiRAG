@@ -13,10 +13,13 @@ owns that lock, so indexing from another process will fail until it stops. That
 is a property of running the database in-process, not a bug to work around here.
 """
 
+import os
+
 import streamlit as st
 
 from multirag import config
 from multirag.generate import UnknownBackendError, load_generator
+from multirag.generate.factory import BACKENDS
 from multirag.index import manifest as index_manifest
 from multirag.retrieve import RetrievalMismatchError, Retriever
 
@@ -34,8 +37,47 @@ def get_retriever() -> Retriever:
     return Retriever.open()
 
 
-def sidebar() -> tuple[str, int]:
-    """Backend and top-k controls. Returns the current selection."""
+def backend_settings(backend: str) -> dict:
+    """Provider fields for the chosen backend, as load_generator keyword args.
+
+    The key field is a password input whose value lives only in this browser
+    session's st.session_state - in this process's memory, never on disk, never
+    in the shared cache, gone when the tab closes or the app stops. An empty
+    field falls back to the provider's environment variable.
+    """
+    if backend == "echo":
+        return {}
+
+    if backend == "claude":
+        settings = {"model": st.text_input("Model", value=config.GENERATOR_MODEL)}
+        env_var = "ANTHROPIC_API_KEY"
+    else:
+        settings = {
+            "base_url": st.text_input(
+                "Base URL",
+                value="https://api.openai.com/v1",
+                help="Any OpenAI-compatible endpoint: OpenAI, Gemini, Groq, Mistral, "
+                "OpenRouter, or a local server such as Ollama (http://localhost:11434/v1).",
+            ),
+            "model": st.text_input(
+                "Model", placeholder="a vision-capable model", help="Must accept images."
+            ),
+        }
+        env_var = "OPENAI_API_KEY"
+
+    settings["api_key"] = st.text_input(
+        "API key",
+        type="password",
+        key=f"api_key_{backend}",
+        help="Kept only in this browser session's memory - never saved or logged.",
+    )
+    if not settings["api_key"] and os.environ.get(env_var):
+        st.caption(f"Using `{env_var}` from your environment.")
+    return settings
+
+
+def sidebar() -> tuple[str, int, dict]:
+    """Backend, provider and top-k controls. Returns the current selection."""
     with st.sidebar:
         st.header("Settings")
 
@@ -48,13 +90,13 @@ def sidebar() -> tuple[str, int]:
 
         backend = st.selectbox(
             "Answer backend",
-            ["echo", "claude"],
+            BACKENDS,
             help=(
                 "echo calls no model and needs no credentials - it reports which "
-                "pages would be sent. claude reads ANTHROPIC_API_KEY from your own "
-                "environment."
+                "pages would be sent. The others call a provider with your own key."
             ),
         )
+        settings = backend_settings(backend)
         top_k = st.slider("Pages to retrieve", 1, 10, config.RETRIEVE_TOP_K)
 
         st.divider()
@@ -62,7 +104,7 @@ def sidebar() -> tuple[str, int]:
             "This app holds an exclusive lock on the Qdrant store. Stop it before "
             "indexing new documents."
         )
-    return backend, top_k
+    return backend, top_k, settings
 
 
 def show_hits(hits) -> None:
@@ -83,7 +125,7 @@ def main() -> None:
     st.title("MultiRAG")
     st.caption("Ask a question; pages are retrieved as images, never as extracted text.")
 
-    backend, top_k = sidebar()
+    backend, top_k, settings = sidebar()
 
     question = st.text_input("Question", placeholder="When is the homework due?")
     if not question:
@@ -116,7 +158,7 @@ def main() -> None:
     # connected to this server, so a generator holding one user's key must not
     # live there. Construction is cheap; the expensive part is the API call.
     try:
-        generator = load_generator(backend)
+        generator = load_generator(backend, **settings)
     except UnknownBackendError as error:
         st.error(str(error))
         return
