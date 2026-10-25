@@ -71,3 +71,41 @@ def load_run(path: Path) -> dict:
     if record is None:
         raise FileNotFoundError(path)
     return record
+
+
+# Differences that make metric deltas meaningless: a different test, a different
+# cutoff, or a corpus that gained or lost pages (more pages = more distractors).
+_INVALIDATING = (
+    ("goldset_fingerprint", "gold set edited"),
+    ("k", "k"),
+    ("corpus_pages", "corpus size"),
+)
+# Differences that are usually the point of the comparison.
+_VARIABLES = (("model_id", "encoder"), ("model_revision", "encoder revision"))
+
+
+def compare(old: dict, new: dict) -> dict:
+    """What changed between two saved runs, and whether the deltas can be trusted.
+
+    Rank changes are per question and include questions that only moved within
+    the top k - a #4 becoming #1 is invisible in hit@k but is what a user sees.
+    """
+    def changed(fields):
+        return [
+            f"{label}: {old.get(key)} -> {new.get(key)}"
+            for key, label in fields
+            if old.get(key) != new.get(key)
+        ]
+
+    previous = {q["qid"]: q for q in old["questions"]}
+    rank_changes = [
+        (q["qid"], previous[q["qid"]]["rank"], q["rank"])
+        for q in new["questions"]
+        if q["qid"] in previous and previous[q["qid"]]["rank"] != q["rank"]
+    ]
+    return {
+        "invalidating": changed(_INVALIDATING),
+        "variables": changed(_VARIABLES),
+        "metrics": {m: (old["metrics"][m], new["metrics"][m]) for m in METRICS},
+        "rank_changes": rank_changes,
+    }
