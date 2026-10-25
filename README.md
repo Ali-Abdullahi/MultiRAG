@@ -148,8 +148,40 @@ questions, the default `colSmol-256M` encoder scored top-1 0.600, hit@5 0.886,
 MRR 0.718. Most misses were dense homework or exam pages outranking the slide that
 explained the concept.
 
-Gold sets built from private documents quote them; keep those out of version
-control (see `.gitignore`).
+**Unanswerable questions.** Mark a question `"answerable": false` (with no
+`relevant` pages) when the documents deliberately cannot answer it. These stay out
+of the ranking metrics and instead check the app's weak-match warning: each run
+reports how many unanswerable questions it fired on, and how many answerable ones
+it wrongly fired on (which should be 0).
+
+**Saved runs.** Every `eval` is saved under `data/evals/<name>/`. Compare them:
+
+```bash
+python -m multirag runs <name>             # numbered list with headline metrics
+python -m multirag compare <name> [old new] # default: the last two runs
+```
+
+`compare` shows metric deltas and per-question rank changes. A different encoder is
+reported as what changed; an edited gold set, a different k, or a different corpus
+size is flagged as a warning, because each moves the numbers for reasons that have
+nothing to do with retrieval quality.
+
+Gold sets and saved runs built from private documents quote them; keep them out of
+version control (`data/` is already ignored).
+
+## Tests
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
+
+The suite runs in about 10 seconds with no model, no network and no API key: it
+uses a fake encoder, a local stand-in for the provider, and a temporary data
+directory, so it never touches your documents or index. It covers content
+identity, idempotent ingest and indexing, every staleness check, crash
+resumption, Qdrant's MaxSim against an independent numpy computation, the store
+lock, provider error handling, and that API keys never appear in anything shown.
 
 ## Design notes
 
@@ -183,7 +215,10 @@ uses the CPU unless `EMBED_DEVICE` is set explicitly.
 ## Limitations
 
 - Retrieval always returns the top k pages, even for a question the documents cannot
-  answer; the vision model is instructed to say so rather than guess.
+  answer. The app warns when the best page is a weak match (score per query token
+  below `WEAK_MATCH_THRESHOLD`), and the vision model is instructed to say so rather
+  than guess. The threshold is calibrated per encoder - re-check it with `eval`
+  after changing models.
 - One process can open the index at a time (embedded Qdrant takes a file lock).
 - The `claude` backend has not yet been exercised against the live API; the
   `openai-compatible` backend has (via Gemini).
