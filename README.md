@@ -104,3 +104,47 @@ calls are billed separately by each provider.
 To add a provider that is not OpenAI-compatible: write one class with an
 `answer(question, hits)` method (see `multirag/generate/base.py`) and register it in
 `multirag/generate/factory.py`. Nothing else needs to know about it.
+
+## Evaluation
+
+A gold set is a JSON file in `evalsets/` pairing questions with the page(s) that
+answer them. Pages are cited the way a person would - filename and 1-based page:
+
+```json
+{
+  "schema_version": 1,
+  "questions": [
+    {
+      "id": "late-policy",
+      "question": "What happens if I submit the report late?",
+      "relevant": [{ "source_name": "Syllabus.pdf", "page": 2 }]
+    }
+  ]
+}
+```
+
+List several pages when more than one is a correct answer. Write questions the way
+you would actually ask them, not by copying the page's wording - that measures string
+overlap, not retrieval. A reference to a page that is not indexed fails at load time
+rather than silently scoring zero.
+
+`python -m multirag eval <name>` prints a line per question - with what ranked first
+whenever the expected page did not - then:
+
+| Metric | Meaning |
+|---|---|
+| top-1 | right page ranked first |
+| hit@k | a right page anywhere in the top k (what the vision model actually receives) |
+| recall@k | share of all right pages found in the top k |
+| MRR | how near the top the first right page lands |
+
+If the corpus has no more pages than k, every page is always returned and hit@k is
+meaningless; the report warns when that happens.
+
+For reference: on a 208-page lecture-and-homework corpus with 35 hand-checked
+questions, the default `colSmol-256M` encoder scored top-1 0.600, hit@5 0.886,
+MRR 0.718. Most misses were dense homework or exam pages outranking the slide that
+explained the concept.
+
+Gold sets built from private documents quote them; keep those out of version
+control (see `.gitignore`).
