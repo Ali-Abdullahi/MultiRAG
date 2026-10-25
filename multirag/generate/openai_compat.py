@@ -39,13 +39,22 @@ def _image_part(page: PageImage) -> dict:
 class OpenAICompatGenerator:
     """Sends page images to any OpenAI-compatible vision model."""
 
-    def __init__(self, model: str | None = None, base_url: str | None = None, api_key: str | None = None):
+    def __init__(
+        self,
+        model: str | None = None,
+        base_url: str | None = None,
+        api_key: str | None = None,
+        timeout: float = TIMEOUT_SECONDS,
+    ):
         # No default model on purpose: a hardcoded name goes stale, and a
         # text-only model would fail on the images. The user names one they have.
         self.model = (model or os.environ.get("MULTIRAG_OPENAI_MODEL") or "").strip()
         self.base_url = (base_url or os.environ.get("MULTIRAG_OPENAI_BASE_URL") or DEFAULT_BASE_URL).rstrip("/")
         self._api_key = (api_key or os.environ.get("OPENAI_API_KEY") or "").strip()
         self.name = f"openai-compatible:{self.model or '?'}"
+        # Per-read, not total: httpx resets it whenever bytes arrive. A busy free
+        # tier can sit silent for minutes, so the caller may need to raise it.
+        self.timeout = timeout
 
     def __repr__(self) -> str:
         # Defined so the key can never surface through a debugger, a log line,
@@ -92,10 +101,10 @@ class OpenAICompatGenerator:
                 f"{self.base_url}/chat/completions",
                 json=self._payload(question, pages),
                 headers=headers,
-                timeout=TIMEOUT_SECONDS,
+                timeout=self.timeout,
             )
         except httpx.TimeoutException:
-            raise ProviderError(f"{self.base_url} did not answer within {TIMEOUT_SECONDS}s") from None
+            raise ProviderError(f"{self.base_url} did not answer within {self.timeout:.0f}s") from None
         except httpx.HTTPError as error:
             # `from None`: the chained exception holds the request, headers included.
             raise ProviderError(f"could not reach {self.base_url}: {type(error).__name__}") from None
