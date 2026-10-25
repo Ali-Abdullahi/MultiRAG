@@ -29,6 +29,21 @@ def _image_block(page: PageImage) -> dict:
     }
 
 
+def _sdk():
+    """Import the anthropic SDK, or say how to get it.
+
+    It is an optional dependency - echo and openai-compatible run without it - so
+    a missing install is an expected state, not a crash to show as a traceback.
+    """
+    try:
+        import anthropic
+    except ImportError:
+        raise RuntimeError(
+            "the claude backend needs the anthropic package: pip install anthropic"
+        ) from None
+    return anthropic
+
+
 class ClaudeGenerator:
     """Sends page images to a Claude vision model and returns a cited answer."""
 
@@ -49,7 +64,7 @@ class ClaudeGenerator:
     def _get_client(self):
         """Build the SDK client on first use, not at import time."""
         if self._client is None:
-            import anthropic
+            anthropic = _sdk()
 
             # A key typed into the UI is passed through; otherwise api_key=None
             # lets the SDK resolve the caller's own credentials from their
@@ -60,7 +75,7 @@ class ClaudeGenerator:
 
     def answer(self, question: str, hits: list[Hit]) -> Answer:
         """Answer from the given pages. Images precede text, as the API expects."""
-        import anthropic
+        anthropic = _sdk()
 
         pages = prompt_mod.load_page_images(hits)
         content = [_image_block(page) for page in pages]
