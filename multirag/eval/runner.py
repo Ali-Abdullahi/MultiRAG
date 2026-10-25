@@ -33,6 +33,9 @@ class QuestionResult:
     rank: int | None
     recall: float
     reciprocal_rank: float
+    answerable: bool = True
+    # Hit.match of the top page: what the UI's weak-match warning is decided on.
+    top_match: float | None = None
 
     @property
     def found(self) -> bool:
@@ -71,20 +74,27 @@ class RunReport:
         return len(self.results)
 
     @property
+    def scored(self) -> tuple[QuestionResult, ...]:
+        """Questions with a right answer. Every ranking metric is over these only:
+        an unanswerable question has no right page, so counting it would score a
+        miss against every retriever and drag all of them down equally."""
+        return tuple(r for r in self.results if r.answerable)
+
+    @property
     def hit_rate(self) -> float:
         """Share of questions with at least one relevant page in the top k."""
-        return self._mean(1.0 if r.found else 0.0 for r in self.results)
+        return self._mean(1.0 if r.found else 0.0 for r in self.scored)
 
     @property
     def mean_recall(self) -> float:
         """Mean recall@k. Below hit_rate exactly when a multi-page question
         found some of its pages but not all."""
-        return self._mean(r.recall for r in self.results)
+        return self._mean(r.recall for r in self.scored)
 
     @property
     def mrr(self) -> float:
         """Mean reciprocal rank: how near the top the first right answer lands."""
-        return self._mean(r.reciprocal_rank for r in self.results)
+        return self._mean(r.reciprocal_rank for r in self.scored)
 
     @property
     def top1_rate(self) -> float:
@@ -94,7 +104,7 @@ class RunReport:
         It is also the one closest to what a user experiences: the first page is
         the one a person sees first and the one a VLM weighs most heavily.
         """
-        return self._mean(1.0 if r.rank == 1 else 0.0 for r in self.results)
+        return self._mean(1.0 if r.rank == 1 else 0.0 for r in self.scored)
 
     @property
     def saturated(self) -> bool:
@@ -110,7 +120,27 @@ class RunReport:
     @property
     def misses(self) -> tuple[QuestionResult, ...]:
         """Questions where nothing relevant was retrieved - the work queue."""
-        return tuple(r for r in self.results if not r.found)
+        return tuple(r for r in self.scored if not r.found)
+
+    def weak_match_check(self, threshold: float | None = None) -> dict:
+        """How well the UI's weak-match threshold separates the two kinds of question.
+
+        A good threshold warns on unanswerable questions and stays quiet on
+        answerable ones. Both failure counts are reported because they cost
+        different things: a missed warning lets a guess through; a false one
+        teaches the user to ignore the warning.
+        """
+        threshold = config.WEAK_MATCH_THRESHOLD if threshold is None else threshold
+        unanswerable = [r for r in self.results if not r.answerable]
+        def below(r):
+            return r.top_match is not None and r.top_match < threshold
+        return {
+            "threshold": threshold,
+            "answerable_warned": sum(1 for r in self.scored if below(r)),
+            "answerable": len(self.scored),
+            "unanswerable_missed": sum(1 for r in unanswerable if not below(r)),
+            "unanswerable": len(unanswerable),
+        }
 
     def _mean(self, values) -> float:
         """Mean over questions, 0.0 for an empty run rather than ZeroDivisionError."""
@@ -125,6 +155,13 @@ def _score(question, hits: tuple[Hit, ...], k: int) -> QuestionResult:
     list it had sorted itself would measure the harness, not the retriever.
     """
     retrieved = [hit.page_id for hit in hits]
+    top_match = hits[0].match if hits else None
+    if not question.answerable:
+        return QuestionResult(
+            qid=question.qid, question=question.question, relevant=frozenset(), refs=(),
+            hits=hits, rank=None, recall=0.0, reciprocal_rank=0.0,
+            answerable=False, top_match=top_match,
+        )
     return QuestionResult(
         qid=question.qid,
         question=question.question,
@@ -134,6 +171,7 @@ def _score(question, hits: tuple[Hit, ...], k: int) -> QuestionResult:
         rank=metrics.rank_of_first_relevant(retrieved, question.relevant, k),
         recall=metrics.recall_at_k(retrieved, question.relevant, k),
         reciprocal_rank=metrics.reciprocal_rank(retrieved, question.relevant, k),
+        top_match=top_match,
     )
 
 
