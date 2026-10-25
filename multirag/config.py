@@ -105,6 +105,11 @@ GENERATOR_MODEL = os.environ.get("MULTIRAG_GENERATOR_MODEL", "claude-opus-5-5")
 # An eval you cannot diff across commits cannot tell you whether a change helped.
 EVALSETS_DIR = PROJECT_ROOT / "evalsets"
 
+# Saved run reports. Under data/ (gitignored) rather than beside the gold sets:
+# a report repeats every question and the pages retrieved for it, so it is as
+# private as the documents it was scored against.
+EVAL_RUNS_DIR = DATA_DIR / "evals"
+
 # Retrieval is scored at this depth regardless of RETRIEVE_TOP_K. Metrics must
 # not move because a serving default was tuned - otherwise every comparison
 # against an earlier run silently measures two different things.
