@@ -20,6 +20,19 @@ class MissingCredentialsError(RuntimeError):
     so the UI can catch one type, whichever provider is selected."""
 
 
+# Real provider keys run 30+ characters. Anything shorter cannot be one, and
+# replacing it would mangle ordinary words: a 1-character key turned "pick"
+# into "pic[redacted]" in testing.
+_MIN_SECRET_LENGTH = 8
+
+
+def redact(text: str, secret: str | None) -> str:
+    """Remove a secret from text that is about to be displayed."""
+    if secret and len(secret) >= _MIN_SECRET_LENGTH:
+        return text.replace(secret, "[redacted]")
+    return text
+
+
 @dataclass(frozen=True)
 class PageImage:
     """One retrieved page, loaded and ready to send to a vision model."""

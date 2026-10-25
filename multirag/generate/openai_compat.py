@@ -16,7 +16,7 @@ import base64
 import os
 
 from multirag.generate import prompt as prompt_mod
-from multirag.generate.base import Answer, MissingCredentialsError, PageImage
+from multirag.generate.base import Answer, MissingCredentialsError, PageImage, redact
 from multirag.retrieve import Hit
 
 DEFAULT_BASE_URL = "https://api.openai.com/v1"
@@ -79,9 +79,7 @@ class OpenAICompatGenerator:
         Some providers echo part or all of a rejected key in their error body.
         Errors are rendered in the UI, so this runs on everything that is shown.
         """
-        if self._api_key:
-            text = text.replace(self._api_key, "[redacted]")
-        return text[:300]
+        return redact(text, self._api_key)[:300]
 
     def answer(self, question: str, hits: list[Hit]) -> Answer:
         """Answer from the given pages, or raise an error that is safe to show."""
