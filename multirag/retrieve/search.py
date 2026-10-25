@@ -38,7 +38,7 @@ class Hit:
 
         The raw MaxSim score is a sum over query tokens, so it grows with question
         length and cannot be compared across questions. Dividing by the token
-        count gives a number that can - measured on the CSCI 5521 corpus, it
+        count gives a number that can - measured on a 208-page course corpus, it
         separated answerable from unanswerable questions where the raw score
         overlapped (raw 10.9-20.5 vs 8.1-11.8; per-token 0.53-0.78 vs 0.42-0.55).
         """
