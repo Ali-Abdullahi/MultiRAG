@@ -1,0 +1,16 @@
+[server]
+# Listen on this machine only. Streamlit's default binds every interface, which
+# put the app - its indexed documents and any API key typed into it - on the
+# local network for anyone on the same Wi-Fi to open.
+address = "localhost"
+
+[browser]
+# The app handles private documents and user-supplied keys; nothing about its
+# use needs to leave the machine.
+gatherUsageStats = false
+
+[client]
+# Hides Deploy (which publishes to Streamlit Cloud - not wanted, and it could
+# not work anyway since data/ is gitignored) along with the other developer menu
+# items.
+toolbarMode = "viewer"
